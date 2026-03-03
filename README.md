@@ -33,12 +33,15 @@ Claude Code is powerful, but it's blind — it can't see your screen or interact
 ### Install
 
 ```bash
-/install-plugin git@gitlab.com:3spky5u/HandsOn.git
+git clone git@gitlab.com:3spky5u/HandsOn.git ~/.claude/plugins/handson
 ```
 
 Restart Claude Code after installing. Python dependencies are installed automatically on first run.
 
-To update, re-run the install command — it will pull the latest version.
+To update:
+```bash
+cd ~/.claude/plugins/handson && git pull
+```
 
 **Requirements:** Python 3.10+, Windows 10/11 or macOS 12+ (Monterey or later).
 
