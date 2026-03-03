@@ -343,6 +343,13 @@ def do_find_text(
         from tools.target_window import get_target
         window_title = get_target()
 
+    # Ensure target window is focused before OCR capture
+    try:
+        from tools.target_window import ensure_focus
+        ensure_focus()
+    except Exception:
+        pass
+
     # Window-scoped region capture
     region_offset = None
     region_scale = 1.0  # screenshot may be downscaled for transport

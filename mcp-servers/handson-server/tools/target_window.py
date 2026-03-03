@@ -284,6 +284,7 @@ def register(server) -> int:
         set_target(title if title else None)
         current = get_target()
         if current:
+            ensure_focus()
             return f"Target window set to {current!r}. All input actions will auto-focus this window. REMEMBER: call set_target_window('') when done to return focus to the terminal."
         return "Target window cleared. Terminal refocused."
 
