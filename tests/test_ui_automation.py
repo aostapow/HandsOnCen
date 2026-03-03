@@ -67,8 +67,9 @@ class TestClickElement:
         # Should click center of element: x=100+80/2=140, y=200+30/2=215
         mock_click.assert_called_once_with(140, 215)
 
+    @mock.patch("tools.ui_automation._fuzzy_find_nearest", return_value=None)
     @mock.patch("tools.ui_automation.do_find_element")
-    def test_click_not_found(self, mock_find):
+    def test_click_not_found(self, mock_find, mock_fuzzy):
         mock_find.return_value = {"found": False, "elements": []}
 
         from tools.ui_automation import do_click_element
@@ -280,4 +281,4 @@ class TestRegister:
         server = mock.MagicMock()
         from tools.ui_automation import register
         count = register(server)
-        assert count == 5
+        assert count == 6

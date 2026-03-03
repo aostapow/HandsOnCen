@@ -11,7 +11,9 @@ Provides three MCP tools:
 """
 from __future__ import annotations
 
+import hashlib
 import sys
+from difflib import SequenceMatcher
 from typing import Optional
 
 from tools.input_tools import do_click
@@ -156,31 +158,123 @@ def do_find_element(
     return {"found": True, "elements": matches}
 
 
+def _fuzzy_find_nearest(
+    name: Optional[str],
+    role: Optional[str],
+    window_title: Optional[str],
+) -> Optional[dict]:
+    """Find the nearest element by fuzzy name match or role proximity.
+
+    Returns dict with 'element', 'confidence', 'match_method' or None.
+    Adapted from Nubaeon/empirica-iris matcher.py.
+    """
+    all_result = do_list_elements(window_title=window_title, role=role)
+    candidates = all_result.get("elements", [])
+    if not candidates:
+        return None
+
+    best = None
+    best_confidence = 0.0
+    best_method = "none"
+
+    for elem in candidates:
+        confidence = 0.0
+        method = "role_only"
+
+        if name and elem.get("name"):
+            ratio = SequenceMatcher(None, name.lower(), elem["name"].lower()).ratio()
+            if ratio >= 0.6:
+                confidence = 0.5 + (ratio * 0.4)  # 0.6-1.0 ratio -> 0.74-0.9 confidence
+                method = "fuzzy_name"
+
+        if confidence == 0.0 and role:
+            confidence = 0.4
+            method = "role_only"
+
+        if confidence > best_confidence:
+            best_confidence = confidence
+            best = elem
+            best_method = method
+
+    if best is None:
+        return None
+
+    return {
+        "element": best,
+        "confidence": round(best_confidence, 2),
+        "match_method": best_method,
+    }
+
+
 def do_click_element(
     name: Optional[str] = None,
     role: Optional[str] = None,
     window_title: Optional[str] = None,
     index: int = 0,
 ) -> dict:
-    """Find an element by name/role and click its center."""
+    """Find an element by name/role and click its center.
+
+    If exact match fails, attempts fuzzy fallback:
+    - confidence >= 0.7: auto-clicks and reports the fallback
+    - confidence < 0.7: reports nearest match without clicking
+    """
     result = do_find_element(name=name, role=role, window_title=window_title)
-    if not result["found"]:
+    if result["found"]:
+        idx = min(index, len(result["elements"]) - 1)
+        elem = result["elements"][idx]
+        center_x = elem["x"] + elem["width"] // 2
+        center_y = elem["y"] + elem["height"] // 2
+        click_result = do_click(center_x, center_y)
+        out = {
+            "success": True,
+            "element": elem,
+            "clicked_at": {"x": center_x, "y": center_y},
+        }
+        if "navigation_warning" in click_result:
+            out["navigation_warning"] = click_result["navigation_warning"]
+        return out
+
+    # Exact match failed — try fuzzy fallback
+    nearest = _fuzzy_find_nearest(name=name, role=role, window_title=window_title)
+    if nearest is None:
         return {"success": False, "error": f"Element not found: name={name}, role={role}"}
 
-    idx = min(index, len(result["elements"]) - 1)
-    elem = result["elements"][idx]
-    center_x = elem["x"] + elem["width"] // 2
-    center_y = elem["y"] + elem["height"] // 2
-
-    click_result = do_click(center_x, center_y)
-    out = {
-        "success": True,
-        "element": elem,
-        "clicked_at": {"x": center_x, "y": center_y},
-    }
-    if "navigation_warning" in click_result:
-        out["navigation_warning"] = click_result["navigation_warning"]
-    return out
+    if nearest["confidence"] >= 0.7:
+        elem = nearest["element"]
+        center_x = elem["x"] + elem["width"] // 2
+        center_y = elem["y"] + elem["height"] // 2
+        click_result = do_click(center_x, center_y)
+        out = {
+            "success": True,
+            "fallback": True,
+            "confidence": nearest["confidence"],
+            "match_method": nearest["match_method"],
+            "element": elem,
+            "clicked_at": {"x": center_x, "y": center_y},
+            "note": (
+                f"Exact match for '{name}' not found. Clicked nearest: "
+                f"'{elem['name']}' ({nearest['match_method']}, confidence={nearest['confidence']})"
+            ),
+        }
+        if "navigation_warning" in click_result:
+            out["navigation_warning"] = click_result["navigation_warning"]
+        return out
+    else:
+        elem = nearest["element"]
+        return {
+            "success": False,
+            "nearest": {
+                "element": elem,
+                "confidence": nearest["confidence"],
+                "match_method": nearest["match_method"],
+            },
+            "error": (
+                f"Exact match for '{name}' not found. "
+                f"Nearest: '{elem['name']}' ({nearest['match_method']}, confidence={nearest['confidence']}). "
+                f"Confidence too low to auto-click (threshold=0.7). "
+                f"Click at ({elem['x'] + elem['width'] // 2}, {elem['y'] + elem['height'] // 2}) to target it manually."
+            ),
+        }
 
 
 def do_list_elements(
@@ -306,12 +400,37 @@ def do_smart_find(
     }
 
 
+def do_ui_fingerprint(
+    window_title: Optional[str] = None,
+    max_elements: int = 20,
+) -> dict:
+    """Compute a lightweight fingerprint of the current UI layout.
+
+    Hashes the top N elements' roles, names, and quantized positions.
+    Use to detect layout changes (modals, tab switches) without full re-query.
+    Adapted from Nubaeon/empirica-iris staleness.py.
+    """
+    result = do_list_elements(window_title=window_title, max_depth=3)
+    elements = result.get("elements", [])[:max_elements]
+
+    parts = []
+    for elem in elements:
+        parts.append(f"{elem.get('role', '')}|{elem.get('name', '')}|{elem['x']}|{elem['y']}")
+    fingerprint_str = "\n".join(sorted(parts))
+
+    hash_hex = hashlib.sha256(fingerprint_str.encode()).hexdigest()[:16]
+    return {
+        "hash": hash_hex,
+        "element_count": len(elements),
+    }
+
+
 # ------------------------------------------------------------------
 # MCP tool registration
 # ------------------------------------------------------------------
 
 def register(server) -> int:
-    """Register find_element, click_element, list_elements, get_focused_element, smart_find tools."""
+    """Register find_element, click_element, list_elements, get_focused_element, smart_find, ui_fingerprint tools."""
     import base64 as _b64
     from mcp.server.fastmcp import Image as McpImage
     from tools.safety import with_timeout, ActionTimeoutError
@@ -351,8 +470,8 @@ def register(server) -> int:
         lines = [f"Found {len(result['elements'])} matching element(s):"]
         for i, elem in enumerate(result["elements"]):
             lines.append(
-                f"  [{i}] {elem['role']} \"{elem['name']}\" "
-                f"at ({elem['x']},{elem['y']}) {elem['width']}x{elem['height']}"
+                f"[{i}] {elem['role']} \"{elem['name']}\" "
+                f"({elem['x']},{elem['y']}) {elem['width']}x{elem['height']}"
             )
         return "\n".join(lines)
 
@@ -384,12 +503,21 @@ def register(server) -> int:
         except ActionTimeoutError:
             return f"Timed out after 10s trying to click element name='{name}', role='{role}'. The accessibility tree may be unresponsive."
         if not result["success"]:
-            return f"Failed: {result['error']}"
+            error = result["error"]
+            if "nearest" in result:
+                n = result["nearest"]
+                error += (
+                    f"\nNearest candidate: {n['element']['role']} \"{n['element']['name']}\" "
+                    f"(confidence={n['confidence']})"
+                )
+            return f"Failed: {error}"
 
         from tools.screenshot import capture_screenshot
         shot = capture_screenshot()
         elem = result["element"]
         msg = f"Clicked {elem['role']} \"{elem['name']}\" at ({result['clicked_at']['x']}, {result['clicked_at']['y']}). Screenshot: {shot['width']}x{shot['height']}"
+        if result.get("fallback"):
+            msg += f"\nFALLBACK: {result['note']}"
         if result.get("navigation_warning"):
             msg += f"\n⚠️ {result['navigation_warning']}"
         return [
@@ -430,13 +558,15 @@ def register(server) -> int:
         header += ":"
         lines = [header]
         for i, elem in enumerate(result["elements"]):
+            if not elem["name"] and elem["role"] in ("Pane", "Group", "Custom"):
+                continue
             name_str = f"\"{elem['name']}\"" if elem["name"] else "(unnamed)"
             lines.append(
-                f"  [{i}] {elem['role']} {name_str} "
-                f"at ({elem['x']},{elem['y']}) {elem['width']}x{elem['height']}"
+                f"[{i}] {elem['role']} {name_str} "
+                f"({elem['x']},{elem['y']}) {elem['width']}x{elem['height']}"
             )
             if i >= 100:
-                lines.append(f"  ... and {result['count'] - 100} more (use role filter to narrow)")
+                lines.append(f"... and {result['count'] - 100} more (use role filter to narrow)")
                 break
         return "\n".join(lines)
 
@@ -498,9 +628,26 @@ def register(server) -> int:
         lines = [f"Found {len(result['elements'])} match(es) via {method}:"]
         for i, elem in enumerate(result["elements"]):
             lines.append(
-                f"  [{i}] {elem['role']} \"{elem['name']}\" "
-                f"at ({elem['x']},{elem['y']}) {elem['width']}x{elem['height']}"
+                f"[{i}] {elem['role']} \"{elem['name']}\" "
+                f"({elem['x']},{elem['y']}) {elem['width']}x{elem['height']}"
             )
         return "\n".join(lines)
 
-    return 5
+    @server.tool()
+    def ui_fingerprint(window_title: str = "") -> str:
+        """Quick hash of the current UI layout for change detection.
+
+        Returns a short hash and element count. Compare hashes between
+        actions to detect if the screen layout changed (modal appeared,
+        tab switched, etc.) without re-querying the full accessibility tree.
+        """
+        try:
+            result = with_timeout(
+                lambda: do_ui_fingerprint(window_title=window_title or None),
+                timeout=5.0,
+            )
+        except ActionTimeoutError:
+            return "Timed out computing UI fingerprint."
+        return f"UI fingerprint: {result['hash']} ({result['element_count']} elements)"
+
+    return 6

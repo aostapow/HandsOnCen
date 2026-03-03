@@ -400,69 +400,6 @@ class TestAdaptiveGapTolerance:
         assert len(phrases) == 2
 
 
-class TestDownscaleGuard:
-    @mock.patch("tools.ocr.subprocess.run")
-    def test_oversized_image_is_downscaled(self, mock_run):
-        """A 5120px-wide image should be downscaled to <=4096 before OCR."""
-        from tools.ocr import _ocr_on_file
-        import json
-
-        mock_run.return_value = mock.MagicMock(
-            returncode=0,
-            stdout=json.dumps([
-                {"text": "Hello", "x": 50, "y": 25, "width": 40, "height": 16}
-            ])
-        )
-
-        # Create a real 5120x2160 test image (tiny white PNG)
-        from PIL import Image as PILImage
-        img = PILImage.new("RGB", (5120, 2160), "white")
-        import tempfile, os
-        tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
-        img.save(tmp.name)
-        tmp.close()
-
-        try:
-            results = _ocr_on_file(tmp.name.replace('/', '\\'))
-            assert len(results) == 1
-            # Coordinates should be scaled back up: 50 * (5120/4096) ≈ 62
-            assert results[0]["x"] > 50  # Scaled up from downscaled coordinates
-            assert results[0]["text"] == "Hello"
-        finally:
-            os.remove(tmp.name)
-            # Clean up any _scaled.png file
-            scaled = tmp.name.rsplit('.', 1)[0] + "_scaled.png"
-            if os.path.exists(scaled):
-                os.remove(scaled)
-
-    @mock.patch("tools.ocr.subprocess.run")
-    def test_normal_sized_image_not_downscaled(self, mock_run):
-        """An image within 4096px should NOT be downscaled."""
-        from tools.ocr import _ocr_on_file
-        import json
-
-        mock_run.return_value = mock.MagicMock(
-            returncode=0,
-            stdout=json.dumps([
-                {"text": "Hello", "x": 50, "y": 25, "width": 40, "height": 16}
-            ])
-        )
-
-        from PIL import Image as PILImage
-        img = PILImage.new("RGB", (1920, 1080), "white")
-        import tempfile, os
-        tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
-        img.save(tmp.name)
-        tmp.close()
-
-        try:
-            results = _ocr_on_file(tmp.name.replace('/', '\\'))
-            assert len(results) == 1
-            assert results[0]["x"] == 50  # No scaling applied
-        finally:
-            os.remove(tmp.name)
-
-
 class TestRapidOcrBackend:
     """Tests for the optional RapidOCR integration."""
 
@@ -575,30 +512,15 @@ class TestRapidOcrBackend:
         assert len(words) == 1
         assert words[0]["text"] == "Good"
 
-    def test_dispatch_falls_back_to_windows_ocr(self):
-        """When RapidOCR is not available, _run_ocr_engine should use Windows OCR."""
+    def test_dispatch_uses_rapid_ocr(self):
+        """_run_ocr_engine should dispatch to _rapid_ocr_on_image."""
         import tools.ocr as ocr_mod
 
-        with mock.patch.object(ocr_mod, "_get_rapid_engine", return_value=None), \
-             mock.patch.object(ocr_mod, "_ocr_on_file", return_value=[{"text": "Hi", "x": 1, "y": 1, "width": 20, "height": 10}]) as mock_win:
-            result = ocr_mod._run_ocr_engine("/fake/test.png")
-
-        assert len(result) == 1
-        assert result[0]["text"] == "Hi"
-        mock_win.assert_called_once()
-
-    def test_dispatch_uses_rapid_when_available(self):
-        """When RapidOCR is available, _run_ocr_engine should use it."""
-        import tools.ocr as ocr_mod
-
-        with mock.patch.object(ocr_mod, "_get_rapid_engine", return_value=mock.MagicMock()), \
-             mock.patch.object(ocr_mod, "_rapid_ocr_on_image", return_value=[{"text": "Fast", "x": 1, "y": 1, "width": 20, "height": 10}]) as mock_rapid, \
-             mock.patch.object(ocr_mod, "_ocr_on_file") as mock_win:
+        with mock.patch.object(ocr_mod, "_rapid_ocr_on_image", return_value=[{"text": "Fast", "x": 1, "y": 1, "width": 20, "height": 10}]) as mock_rapid:
             result = ocr_mod._run_ocr_engine("/fake/test.png")
 
         assert result[0]["text"] == "Fast"
         mock_rapid.assert_called_once()
-        mock_win.assert_not_called()
 
     def test_rapid_ocr_downscale_rescales_coords(self):
         """Oversized images should be downscaled and coords rescaled back."""

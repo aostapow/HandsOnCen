@@ -1,19 +1,16 @@
 """OCR tools -- find and click text on screen.
 
 Fallback targeting for apps with poor accessibility trees.
-Uses rapidocr-onnxruntime when installed (fast, pure-Python), otherwise
-falls back to Windows built-in OCR engine via PowerShell (zero-dependency).
+Uses RapidOCR (rapidocr-onnxruntime) as the default engine on all platforms,
+with macOS Vision as preferred when available on darwin.
 
 Provides two MCP tools:
     find_text   - find text on screen, returns locations
     click_text  - find text + click Nth occurrence
 """
 
-import json
 import os
-import subprocess
 import sys
-import tempfile
 from typing import Optional
 
 from PIL import Image, ImageOps
@@ -44,28 +41,24 @@ def _get_window_rect(window_title: str) -> Optional[dict]:
     }
 
 # ---------------------------------------------------------------------------
-# Optional RapidOCR backend (pip install rapidocr-onnxruntime)
+# RapidOCR backend (required dependency)
 # ---------------------------------------------------------------------------
-_rapid_engine = None  # Lazy-initialized on first use
-_rapid_available = None  # None = not checked yet, True/False after check
+_rapid_engine = None
 
 
 def _get_rapid_engine():
-    """Return a RapidOCR engine instance, or None if not installed."""
-    global _rapid_engine, _rapid_available
-    if _rapid_available is False:
-        return None
+    """Return the RapidOCR engine instance.
+
+    Raises ImportError if rapidocr-onnxruntime is not installed.
+    This is a required dependency -- callers should not swallow this error.
+    """
+    global _rapid_engine
     if _rapid_engine is not None:
         return _rapid_engine
-    try:
-        from rapidocr_onnxruntime import RapidOCR
-        _rapid_engine = RapidOCR()
-        _rapid_available = True
-        print("[ocr] Using RapidOCR engine (fast mode)", file=sys.stderr)
-        return _rapid_engine
-    except ImportError:
-        _rapid_available = False
-        return None
+    from rapidocr_onnxruntime import RapidOCR
+    _rapid_engine = RapidOCR()
+    print("[ocr] Using RapidOCR engine", file=sys.stderr)
+    return _rapid_engine
 
 
 def _rapid_ocr_on_image(image_path: str) -> list[dict]:
@@ -77,10 +70,8 @@ def _rapid_ocr_on_image(image_path: str) -> list[dict]:
     import numpy as np
 
     engine = _get_rapid_engine()
-    if engine is None:
-        return []
 
-    # --- downscale guard (same as Windows OCR) --------------------------------
+    # --- downscale guard -------------------------------------------------------
     scale_factor = 1.0
     try:
         img = Image.open(image_path)
@@ -157,104 +148,6 @@ def _rapid_ocr_on_image(image_path: str) -> list[dict]:
     return words
 
 
-def _ocr_on_file(native_path: str) -> list[dict]:
-    """Run Windows.Media.Ocr on a single image file.
-
-    If either dimension exceeds _OCR_MAX_DIM (4096), the image is
-    downscaled before OCR and the returned coordinates are mapped
-    back to the original resolution.
-    """
-    # --- downscale guard ---------------------------------------------------
-    scale_factor = 1.0
-    scaled_path = None
-    try:
-        img = Image.open(native_path)
-        w, h = img.size
-        if max(w, h) > _OCR_MAX_DIM:
-            scale_factor = _OCR_MAX_DIM / max(w, h)
-            new_w = round(w * scale_factor)
-            new_h = round(h * scale_factor)
-            img = img.resize((new_w, new_h), Image.LANCZOS)
-            scaled_path = native_path.rsplit('.', 1)[0] + "_scaled.png"
-            img.save(scaled_path)
-        img.close()
-    except Exception:
-        scale_factor = 1.0
-        scaled_path = None
-
-    ocr_path = scaled_path if scaled_path else native_path
-
-    ps_script = f'''
-Add-Type -AssemblyName System.Runtime.WindowsRuntime
-$null = [Windows.Media.Ocr.OcrEngine, Windows.Foundation, ContentType=WindowsRuntime]
-$null = [Windows.Graphics.Imaging.BitmapDecoder, Windows.Foundation, ContentType=WindowsRuntime]
-$null = [Windows.Storage.StorageFile, Windows.Foundation, ContentType=WindowsRuntime]
-
-function Await($WinRtTask, $ResultType) {{
-    $asTaskSource = [System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object {{
-        $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation`1'
-    }} | Select-Object -First 1
-    $netTask = $asTaskSource.MakeGenericMethod($ResultType).Invoke($null, @($WinRtTask))
-    $netTask.Wait(-1) | Out-Null
-    $netTask.Result
-}}
-
-$storageFile = Await ([Windows.Storage.StorageFile]::GetFileFromPathAsync("{ocr_path}")) ([Windows.Storage.StorageFile])
-$stream = Await ($storageFile.OpenAsync([Windows.Storage.FileAccessMode]::Read)) ([Windows.Storage.Streams.IRandomAccessStream])
-$decoder = Await ([Windows.Graphics.Imaging.BitmapDecoder]::CreateAsync($stream)) ([Windows.Graphics.Imaging.BitmapDecoder])
-$bitmap = Await ($decoder.GetSoftwareBitmapAsync()) ([Windows.Graphics.Imaging.SoftwareBitmap])
-$engine = [Windows.Media.Ocr.OcrEngine]::TryCreateFromUserProfileLanguages()
-$ocrResult = Await ($engine.RecognizeAsync($bitmap)) ([Windows.Media.Ocr.OcrResult])
-$stream.Dispose()
-
-$results = @()
-foreach ($line in $ocrResult.Lines) {{
-    foreach ($word in $line.Words) {{
-        $rect = $word.BoundingRect
-        $results += @{{
-            text = $word.Text
-            x = [int]$rect.X
-            y = [int]$rect.Y
-            width = [int]$rect.Width
-            height = [int]$rect.Height
-        }}
-    }}
-}}
-$results | ConvertTo-Json -Compress
-'''
-    try:
-        result = subprocess.run(
-            ["powershell", "-NoProfile", "-Command", ps_script],
-            capture_output=True, text=True, timeout=15
-        )
-        if result.returncode != 0:
-            return []
-        output = result.stdout.strip()
-        if not output or output == "null":
-            return []
-        parsed = json.loads(output)
-        # PowerShell returns a single object (not array) if only one result
-        if isinstance(parsed, dict):
-            parsed = [parsed]
-        # --- rescale coordinates back to original resolution ---------------
-        if scale_factor < 1.0:
-            inv = 1.0 / scale_factor
-            for item in parsed:
-                item["x"] = round(item["x"] * inv)
-                item["y"] = round(item["y"] * inv)
-                item["width"] = round(item["width"] * inv)
-                item["height"] = round(item["height"] * inv)
-        return parsed
-    except (subprocess.TimeoutExpired, json.JSONDecodeError, Exception):
-        return []
-    finally:
-        if scaled_path:
-            try:
-                os.remove(scaled_path)
-            except OSError:
-                pass
-
-
 def _deduplicate_words(words: list[dict], tolerance: int = 5) -> list[dict]:
     """Remove duplicate OCR words (same text at similar coordinates)."""
     seen = []
@@ -272,7 +165,7 @@ def _deduplicate_words(words: list[dict], tolerance: int = 5) -> list[dict]:
 
 
 def _run_ocr(image_path: Optional[str] = None, invert: bool = False) -> list[dict]:
-    """Run OCR on a screenshot. Dispatches to RapidOCR if available, else Windows OCR.
+    """Run OCR on a screenshot. Dispatches to the best available engine.
 
     Optionally invert the image first (for dark backgrounds).
     """
@@ -300,18 +193,14 @@ def _run_ocr(image_path: Optional[str] = None, invert: bool = False) -> list[dic
 
 
 def _run_ocr_engine(image_path: str) -> list[dict]:
-    """Dispatch to RapidOCR, Vision (macOS), or Windows.Media.Ocr."""
-    if _get_rapid_engine() is not None:
-        return _rapid_ocr_on_image(image_path)
+    """Dispatch to Vision (macOS preferred) or RapidOCR (all platforms)."""
     if sys.platform == "darwin":
-        from handson_platform import run_ocr_native
-        return run_ocr_native(image_path)
-    native_path = image_path.replace('/', '\\')
-    return _ocr_on_file(native_path)
-
-
-# Keep old name as alias for tests that mock it
-_run_windows_ocr = _run_ocr
+        try:
+            from handson_platform import run_ocr_native
+            return run_ocr_native(image_path)
+        except ImportError:
+            pass
+    return _rapid_ocr_on_image(image_path)
 
 
 def _merge_words(words: list[dict]) -> dict:
@@ -659,7 +548,7 @@ def register(server) -> int:
         lines = [f"Found {len(result['matches'])} match(es) for '{query}':"]
         for i, m in enumerate(result["matches"]):
             lines.append(
-                f"  [{i+1}] \"{m['text']}\" at ({m['x']},{m['y']}) {m['width']}x{m['height']}"
+                f"[{i+1}] \"{m['text']}\" ({m['x']},{m['y']}) {m['width']}x{m['height']}"
             )
         if warning:
             lines.append(warning)

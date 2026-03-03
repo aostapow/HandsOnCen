@@ -8,7 +8,7 @@
     {
       "name": "handson",
       "description": "Give Claude eyes and hands — screen capture and interaction",
-      "version": "0.2.5",
+      "version": "0.3.0",
       "source": "./",
       "author": {
         "name": "3spky5u"

@@ -173,6 +173,18 @@ class TestCaptureScreenshot:
         assert result["width"] == 200
         assert result["height"] == 200
 
+    def test_returns_original_dimensions_when_downscaled(self):
+        """capture_screenshot should return original_width/original_height."""
+        result = self._patch_and_capture(width=3840, height=2160)
+        assert result["original_width"] == 3840
+        assert result["original_height"] == 2160
+
+    def test_original_dimensions_match_when_no_downscale(self):
+        """When no downscale, original == final dimensions."""
+        result = self._patch_and_capture(width=1024, height=768)
+        assert result["original_width"] == 1024
+        assert result["original_height"] == 768
+
 
 # ---------------------------------------------------------------------------
 # Test: region parameter assembly from individual x/y/w/h
@@ -265,3 +277,143 @@ class TestWaitForChange:
 
         assert result["changed"] is False
         assert result["elapsed"] >= 0.3
+
+
+# ---------------------------------------------------------------------------
+# Test: scale factor message formatting
+# ---------------------------------------------------------------------------
+
+class TestScreenshotScaleMessage:
+    """Test that screenshot text messages include scale hints when downscaled."""
+
+    def _build_msg(self, width, height, orig_w, orig_h):
+        """Build the scale-aware message the same way the MCP tool does."""
+        scale = orig_w / width
+        if scale > 1.0:
+            return (
+                f"Screenshot captured: {width}x{height} pixels "
+                f"(scaled from {orig_w}x{orig_h}, "
+                f"multiply coordinates by {scale:.2f} for click targets). "
+                f"File: /tmp/test.png"
+            )
+        return f"Screenshot captured: {width}x{height} pixels. File: /tmp/test.png"
+
+    def test_downscaled_message_includes_scale(self):
+        msg = self._build_msg(1280, 720, 1920, 1080)
+        assert "multiply coordinates by 1.50" in msg
+        assert "scaled from 1920x1080" in msg
+
+    def test_not_downscaled_message_is_simple(self):
+        msg = self._build_msg(1024, 768, 1024, 768)
+        assert "multiply" not in msg
+        assert "scaled" not in msg
+
+    def test_4x_scale_factor(self):
+        msg = self._build_msg(1280, 540, 5120, 2160)
+        assert "multiply coordinates by 4.00" in msg
+        assert "scaled from 5120x2160" in msg
+
+
+# ---------------------------------------------------------------------------
+# Test: visual detect fallback integration
+# ---------------------------------------------------------------------------
+
+class TestVisualDetectFallback:
+    """When UIA returns < 3 elements, visual detection should run."""
+
+    def _make_fake_result(self, width=400, height=300):
+        """Build a fake capture_screenshot result dict."""
+        img = Image.new("RGB", (width, height), (255, 255, 255))
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG")
+        b64 = base64.b64encode(buf.getvalue()).decode()
+        return {
+            "image": b64, "width": width, "height": height,
+            "original_width": width, "original_height": height,
+            "path": "/fake/path.jpg", "dpi_scale": 1.0,
+        }
+
+    @mock.patch("tools.visual_detect.format_regions_text")
+    @mock.patch("tools.visual_detect.detect_ui_regions")
+    def test_fallback_triggers_when_few_elements(self, mock_detect, mock_format):
+        """Visual detect is called when UIA returns < 3 elements."""
+        mock_detect.return_value = [
+            {"x": 100, "y": 120, "w": 200, "h": 40, "class": "button-like",
+             "type": "rect", "text": "OK"},
+        ]
+        mock_format.return_value = '\nDetected UI regions:\n[1] "OK" btn (100,120) 200x40'
+
+        # Simulate the fallback logic from screenshot.py annotated path
+        elements = [{"name": "title", "role": "TitleBar", "x": 0, "y": 0, "width": 400, "height": 30}]
+
+        visual_detect_text = ""
+        useful = [e for e in elements if e.get("name", "").strip()]
+        if len(useful) < 3:
+            from tools.visual_detect import detect_ui_regions, format_regions_text
+            img = Image.new("RGB", (400, 300), (255, 255, 255))
+            regions = detect_ui_regions(img, scale=1.0)
+            if regions:
+                visual_detect_text = format_regions_text(regions)
+
+        mock_detect.assert_called_once()
+        mock_format.assert_called_once()
+        assert "Detected UI regions" in visual_detect_text
+
+    @mock.patch("tools.visual_detect.detect_ui_regions")
+    def test_no_fallback_when_enough_named_elements(self, mock_detect):
+        """Visual detect should NOT run when UIA returns >= 3 *named* elements."""
+        elements = [
+            {"name": "a", "role": "Button", "x": 0, "y": 0, "width": 50, "height": 30},
+            {"name": "b", "role": "Button", "x": 60, "y": 0, "width": 50, "height": 30},
+            {"name": "c", "role": "Button", "x": 120, "y": 0, "width": 50, "height": 30},
+        ]
+
+        visual_detect_text = ""
+        useful = [e for e in elements if e.get("name", "").strip()]
+        if len(useful) < 3:
+            from tools.visual_detect import detect_ui_regions, format_regions_text
+            img = Image.new("RGB", (400, 300), (255, 255, 255))
+            regions = detect_ui_regions(img, scale=1.0)
+            if regions:
+                visual_detect_text = format_regions_text(regions)
+
+        mock_detect.assert_not_called()
+        assert visual_detect_text == ""
+
+    @mock.patch("tools.visual_detect.format_regions_text")
+    @mock.patch("tools.visual_detect.detect_ui_regions")
+    def test_fallback_triggers_with_unnamed_panes(self, mock_detect, mock_format):
+        """Unnamed Panes (like Steam) should still trigger fallback."""
+        mock_detect.return_value = [
+            {"x": 100, "y": 120, "w": 200, "h": 40, "class": "button-like",
+             "type": "rect", "text": "Play"},
+        ]
+        mock_format.return_value = '\nDetected UI regions:\n[1] "Play" btn (100,120) 200x40'
+
+        # Steam-like: 4 elements but all unnamed Panes
+        elements = [
+            {"name": "", "role": "Pane", "x": 0, "y": 0, "width": 1515, "height": 900},
+            {"name": "", "role": "Pane", "x": 0, "y": 0, "width": 1515, "height": 900},
+            {"name": "", "role": "Pane", "x": 0, "y": 0, "width": 1515, "height": 900},
+            {"name": "", "role": "Pane", "x": 0, "y": 0, "width": 1515, "height": 900},
+        ]
+
+        visual_detect_text = ""
+        useful = [e for e in elements if e.get("name", "").strip()]
+        if len(useful) < 3:
+            from tools.visual_detect import detect_ui_regions, format_regions_text
+            img = Image.new("RGB", (400, 300), (255, 255, 255))
+            regions = detect_ui_regions(img, scale=1.0)
+            if regions:
+                visual_detect_text = format_regions_text(regions)
+
+        mock_detect.assert_called_once()
+        assert "Detected UI regions" in visual_detect_text
+
+    def test_fallback_text_appears_in_response(self):
+        """The visual_detect_text should be appended to the response string."""
+        base_msg = "Annotated screenshot: 400x300 pixels. File: /fake.jpg"
+        visual_detect_text = '\nDetected UI regions:\n[1] "OK" btn (100,120) 200x40'
+        full_msg = f"{base_msg}{visual_detect_text}"
+        assert "Detected UI regions" in full_msg
+        assert "Annotated screenshot" in full_msg

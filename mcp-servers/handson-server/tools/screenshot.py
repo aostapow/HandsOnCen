@@ -160,6 +160,9 @@ def capture_screenshot(
     if region is not None:
         img = crop_region(img, region)
 
+    # Record original dimensions before any downscaling
+    original_width, original_height = img.size
+
     # Downscale if wider than MAX_SCREENSHOT_WIDTH
     if img.width > MAX_SCREENSHOT_WIDTH:
         scale = MAX_SCREENSHOT_WIDTH / img.width
@@ -181,6 +184,8 @@ def capture_screenshot(
         "image": b64,
         "width": img.width,
         "height": img.height,
+        "original_width": original_width,
+        "original_height": original_height,
         "path": path,
         "dpi_scale": get_dpi_scale(),
     }
@@ -293,15 +298,19 @@ def annotate_image(
     mouse_pos: Optional[tuple[int, int]] = None,
     elements: Optional[list[dict]] = None,
     grid_spacing: int = 500,
+    scale: float = 1.0,
 ) -> Image.Image:
     """Draw annotation overlays on a copy of img.
 
     Parameters:
-        img: Source screenshot
+        img: Source screenshot (may be downscaled from original)
         grid: Draw grid lines with coordinate labels
-        mouse_pos: (x, y) tuple to draw crosshair at
-        elements: List of element dicts with x, y, width, height, name, role
-        grid_spacing: Pixels between grid lines (default 500)
+        mouse_pos: (x, y) screen coordinates to draw crosshair at
+        elements: List of element dicts with screen-space x, y, width, height
+        grid_spacing: Pixels between grid lines in image space (default 500)
+        scale: Downscale ratio (original_width / image_width). Grid labels
+               show screen coordinates; elements and mouse are converted
+               from screen-space to image-space for drawing.
     """
     from PIL import ImageDraw, ImageFont
 
@@ -318,29 +327,35 @@ def annotate_image(
     text_color = (200, 200, 200)
 
     if grid:
-        # Vertical lines
+        # Vertical lines — labels show screen coordinates
         for x in range(0, w, grid_spacing):
             draw.line([(x, 0), (x, h)], fill=grid_color, width=1)
-            draw.text((x + 2, 2), str(x), fill=text_color, font=font)
+            draw.text((x + 2, 2), str(int(x * scale)), fill=text_color, font=font)
         # Horizontal lines
         for y in range(0, h, grid_spacing):
             draw.line([(0, y), (w, y)], fill=grid_color, width=1)
-            draw.text((2, y + 2), str(y), fill=text_color, font=font)
+            draw.text((2, y + 2), str(int(y * scale)), fill=text_color, font=font)
 
     if mouse_pos:
         mx, my = mouse_pos
+        # Convert screen coords to image coords for drawing
+        draw_mx = int(mx / scale) if scale != 1.0 else mx
+        draw_my = int(my / scale) if scale != 1.0 else my
         cross_size = 20
         cross_color = (255, 0, 0)  # Red
-        draw.line([(mx - cross_size, my), (mx + cross_size, my)], fill=cross_color, width=2)
-        draw.line([(mx, my - cross_size), (mx, my + cross_size)], fill=cross_color, width=2)
-        draw.text((mx + 5, my + 5), f"({mx},{my})", fill=cross_color, font=font)
+        draw.line([(draw_mx - cross_size, draw_my), (draw_mx + cross_size, draw_my)], fill=cross_color, width=2)
+        draw.line([(draw_mx, draw_my - cross_size), (draw_mx, draw_my + cross_size)], fill=cross_color, width=2)
+        # Label shows original screen coordinates (useful for clicking)
+        draw.text((draw_mx + 5, draw_my + 5), f"({mx},{my})", fill=cross_color, font=font)
 
     if elements:
         elem_color = (0, 255, 128)  # Green
         for i, elem in enumerate(elements):
-            x, y = elem["x"], elem["y"]
-            r = x + elem["width"]
-            b = y + elem["height"]
+            # Convert screen-space coords to image-space for drawing
+            x = int(elem["x"] / scale) if scale != 1.0 else elem["x"]
+            y = int(elem["y"] / scale) if scale != 1.0 else elem["y"]
+            r = int((elem["x"] + elem["width"]) / scale) if scale != 1.0 else elem["x"] + elem["width"]
+            b = int((elem["y"] + elem["height"]) / scale) if scale != 1.0 else elem["y"] + elem["height"]
             draw.rectangle([(x, y), (r, b)], outline=elem_color, width=2)
             label = f"[{i}] {elem.get('role', '')} {elem.get('name', '')}"
             draw.text((x, y - 16), label, fill=elem_color, font=font)
@@ -397,6 +412,14 @@ def register(server) -> int:
         Optionally crop to a region with region_x/y/w/h.
         Set annotate=True to overlay grid lines, mouse position, and UI element outlines.
         """
+        # Focus target window before capture so it's in the foreground
+        try:
+            from tools.target_window import ensure_focus, get_target
+            if get_target():
+                ensure_focus()
+                import time; time.sleep(0.3)
+        except Exception:
+            pass
         region = _build_region(region_x, region_y, region_w, region_h)
         try:
             result = with_timeout(
@@ -435,17 +458,74 @@ def register(server) -> int:
             except Exception:
                 pass
 
-            annotated = annotate_image(raw_img, grid=True, mouse_pos=mouse_pos, elements=elements)
+            scale = result["original_width"] / result["width"]
+
+            # Visual detect fallback: when UIA returns insufficient *useful*
+            # elements, run OpenCV + OCR detection to find clickable regions.
+            # Count only elements with names — unnamed Panes are useless.
+            visual_detect_text = ""
+            useful = [e for e in elements if e.get("name", "").strip()]
+            if len(useful) < 3:
+                try:
+                    from tools.visual_detect import detect_ui_regions, format_regions_text
+                    from tools.target_window import get_target
+
+                    # Crop to target window bounds to avoid terminal bleed-through
+                    detect_img = raw_img
+                    crop_offset = (0, 0)
+                    tgt = get_target()
+                    if tgt:
+                        try:
+                            from tools.windows import do_list_windows
+                            for w in do_list_windows():
+                                if tgt.lower() in w["title"].lower():
+                                    x0 = max(0, int(w["x"] / scale))
+                                    y0 = max(0, int(w["y"] / scale))
+                                    x1 = min(raw_img.width, int((w["x"] + w["width"]) / scale))
+                                    y1 = min(raw_img.height, int((w["y"] + w["height"]) / scale))
+                                    if x1 > x0 and y1 > y0:
+                                        detect_img = raw_img.crop((x0, y0, x1, y1))
+                                        crop_offset = (x0, y0)
+                                    break
+                        except Exception:
+                            pass
+
+                    regions = detect_ui_regions(detect_img, scale=scale)
+
+                    # Offset regions back to full-image screen coords
+                    if crop_offset != (0, 0):
+                        ox, oy = crop_offset
+                        for r in regions:
+                            r["x"] += int(ox * scale)
+                            r["y"] += int(oy * scale)
+
+                    if regions:
+                        visual_detect_text = format_regions_text(regions)
+                except Exception:
+                    pass
+
+            annotated = annotate_image(raw_img, grid=True, mouse_pos=mouse_pos, elements=elements, scale=scale)
             buf = io.BytesIO()
             annotated.save(buf, format="PNG")
+            if scale > 1.0:
+                scale_hint = f" (scaled from {result['original_width']}x{result['original_height']}, multiply coordinates by {scale:.2f} for click targets)"
+            else:
+                scale_hint = ""
+
             return [
                 McpImage(data=buf.getvalue(), format="png"),
-                f"Annotated screenshot: {result['width']}x{result['height']} pixels. File: {result['path']}{focus_info}",
+                f"Annotated screenshot: {result['width']}x{result['height']} pixels{scale_hint}. File: {result['path']}{focus_info}{visual_detect_text}",
             ]
+
+        scale = result["original_width"] / result["width"]
+        if scale > 1.0:
+            scale_hint = f" (scaled from {result['original_width']}x{result['original_height']}, multiply coordinates by {scale:.2f} for click targets)"
+        else:
+            scale_hint = ""
 
         return [
             McpImage(data=base64.b64decode(result["image"]), format="png"),
-            f"Screenshot captured: {result['width']}x{result['height']} pixels. File: {result['path']}",
+            f"Screenshot captured: {result['width']}x{result['height']} pixels{scale_hint}. File: {result['path']}",
         ]
 
     @server.tool()
