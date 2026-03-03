@@ -34,6 +34,7 @@ Claude Code is powerful, but it's blind — it can't see your screen or interact
 
 ```bash
 git clone git@gitlab.com:3spky5u/HandsOn.git ~/.claude/plugins/handson
+claude plugin add ~/.claude/plugins/handson
 ```
 
 Restart Claude Code after installing. Python dependencies are installed automatically on first run.
