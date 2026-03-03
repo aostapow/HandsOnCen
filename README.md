@@ -33,17 +33,12 @@ Claude Code is powerful, but it's blind — it can't see your screen or interact
 ### Install
 
 ```bash
-/plugin marketplace add 3spky5u/HandsOn
-/plugin install handson@handson
+/install-plugin git@gitlab.com:3spky5u/HandsOn.git
 ```
 
 Restart Claude Code after installing. Python dependencies are installed automatically on first run.
 
-**Auto-updates:** To receive new versions automatically, enable auto-update for the marketplace:
-```bash
-/plugin marketplace handson --auto-update
-```
-Otherwise, update manually with `/plugin update handson@handson`.
+To update, re-run the install command — it will pull the latest version.
 
 **Requirements:** Python 3.10+, Windows 10/11 or macOS 12+ (Monterey or later).
 
