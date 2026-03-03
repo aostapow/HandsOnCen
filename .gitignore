@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.venv/
+mcp-servers/handson-server/.venv/
+screenshots/
+*.egg-info/
+dist/
+build/
+.worktrees/
+.pytest_cache/
+docs/plans/
+tests/integration/failures/

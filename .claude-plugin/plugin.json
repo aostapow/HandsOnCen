@@ -1,0 +1,20 @@
+{
+  "name": "handson",
+  "version": "0.2.5",
+  "description": "Give Claude eyes and hands — screen capture and interaction for full-auto workflows",
+  "author": {
+    "name": "Kyle Zobell",
+    "url": "https://gitlab.com/3spky5u"
+  },
+  "homepage": "https://gitlab.com/3spky5u/HandsOn",
+  "repository": "https://gitlab.com/3spky5u/HandsOn",
+  "license": "MIT",
+  "keywords": ["screen-capture", "ui-automation", "screenshot", "interaction"],
+  "mcpServers": {
+    "ho": {
+      "command": "python",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/mcp-servers/handson-server/server.py"],
+      "env": {}
+    }
+  }
+}

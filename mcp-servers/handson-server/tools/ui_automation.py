@@ -1,0 +1,506 @@
+"""UI Automation tools -- find and click elements by name/role.
+
+Uses pywinauto's UIA backend on Windows and AXUIElement on macOS to access
+the accessibility tree.  Elements are identified by name (text label) and
+role (control type).  Coordinates are always screen-absolute and DPI-aware.
+
+Provides three MCP tools:
+    find_element   - find UI element by name/role in a window
+    click_element  - find + click center of element
+    list_elements  - dump accessible element tree for a window
+"""
+from __future__ import annotations
+
+import sys
+from typing import Optional
+
+from tools.input_tools import do_click
+
+
+def _get_desktop():
+    """Get pywinauto Desktop instance (lazy import)."""
+    from pywinauto import Desktop
+    return Desktop(backend="uia")
+
+
+def _find_window(desktop, window_title: str):
+    """Find the first window matching partial title using shared matching."""
+    from tools.windows import find_matching_window
+    windows = []
+    for win in desktop.windows():
+        try:
+            windows.append({"_obj": win, "title": win.window_text()})
+        except Exception:
+            continue
+    result = find_matching_window(window_title, windows)
+    return result["window"]["_obj"] if result["window"] else None
+
+
+def _element_to_dict(elem) -> dict:
+    """Convert a pywinauto element to a serializable dict."""
+    try:
+        rect = elem.element_info.rectangle
+        return {
+            "name": elem.element_info.name or "",
+            "role": elem.element_info.control_type or "",
+            "x": rect.left,
+            "y": rect.top,
+            "width": rect.right - rect.left,
+            "height": rect.bottom - rect.top,
+            "value": getattr(elem.element_info, "rich_text", "") or "",
+        }
+    except Exception:
+        return None
+
+
+def _do_find_element_darwin(
+    name: Optional[str] = None,
+    role: Optional[str] = None,
+    window_title: Optional[str] = None,
+) -> dict:
+    """macOS implementation using AXUIElement."""
+    from handson_platform.darwin_backend import (
+        ax_get_frontmost_app,
+        ax_get_app_for_title,
+        ax_find_elements,
+    )
+
+    if window_title:
+        root = ax_get_app_for_title(window_title)
+        if root is None:
+            return {"found": False, "elements": [], "error": f"Window '{window_title}' not found"}
+    else:
+        root = ax_get_frontmost_app()
+        if root is None:
+            return {"found": False, "elements": [], "error": "No frontmost application found"}
+
+    matches = ax_find_elements(root, name=name, role=role)
+    if not matches:
+        return {"found": False, "elements": []}
+    return {"found": True, "elements": matches}
+
+
+def _do_list_elements_darwin(
+    window_title: Optional[str] = None,
+    max_depth: int = 5,
+    role: Optional[str] = None,
+) -> dict:
+    """macOS implementation using AXUIElement."""
+    from handson_platform.darwin_backend import (
+        ax_get_frontmost_app,
+        ax_get_app_for_title,
+        ax_find_elements,
+    )
+
+    if window_title:
+        root = ax_get_app_for_title(window_title)
+        if root is None:
+            return {"elements": [], "error": f"Window '{window_title}' not found"}
+    else:
+        root = ax_get_frontmost_app()
+        if root is None:
+            return {"elements": [], "error": "No frontmost application found"}
+
+    depth = 100 if role else max_depth  # walk full tree when filtering by role
+    all_elements = ax_find_elements(root, role=role, max_depth=depth)
+    return {"elements": all_elements, "count": len(all_elements)}
+
+
+def do_find_element(
+    name: Optional[str] = None,
+    role: Optional[str] = None,
+    window_title: Optional[str] = None,
+    index: int = 0,
+) -> dict:
+    """Find UI elements by name and/or role in a window.
+
+    Returns dict with 'found' bool and 'elements' list.
+    """
+    if sys.platform == "darwin":
+        return _do_find_element_darwin(name, role, window_title)
+
+    desktop = _get_desktop()
+
+    if window_title:
+        window = _find_window(desktop, window_title)
+        if not window:
+            return {"found": False, "elements": [], "error": f"Window '{window_title}' not found"}
+    else:
+        # Use foreground window
+        windows = desktop.windows()
+        window = windows[0] if windows else None
+        if not window:
+            return {"found": False, "elements": [], "error": "No windows found"}
+
+    try:
+        descendants = window.descendants()
+    except Exception as e:
+        return {"found": False, "elements": [], "error": str(e)}
+
+    matches = []
+    for elem in descendants:
+        try:
+            info = elem.element_info
+            name_match = (name is None) or (name.lower() in (info.name or "").lower())
+            role_match = (role is None) or (role.lower() == (info.control_type or "").lower())
+            if name_match and role_match:
+                d = _element_to_dict(elem)
+                if d:
+                    matches.append(d)
+        except Exception:
+            continue
+
+    if not matches:
+        return {"found": False, "elements": []}
+
+    return {"found": True, "elements": matches}
+
+
+def do_click_element(
+    name: Optional[str] = None,
+    role: Optional[str] = None,
+    window_title: Optional[str] = None,
+    index: int = 0,
+) -> dict:
+    """Find an element by name/role and click its center."""
+    result = do_find_element(name=name, role=role, window_title=window_title)
+    if not result["found"]:
+        return {"success": False, "error": f"Element not found: name={name}, role={role}"}
+
+    idx = min(index, len(result["elements"]) - 1)
+    elem = result["elements"][idx]
+    center_x = elem["x"] + elem["width"] // 2
+    center_y = elem["y"] + elem["height"] // 2
+
+    click_result = do_click(center_x, center_y)
+    out = {
+        "success": True,
+        "element": elem,
+        "clicked_at": {"x": center_x, "y": center_y},
+    }
+    if "navigation_warning" in click_result:
+        out["navigation_warning"] = click_result["navigation_warning"]
+    return out
+
+
+def do_list_elements(
+    window_title: Optional[str] = None,
+    max_depth: int = 5,
+    role: Optional[str] = None,
+) -> dict:
+    """List accessible elements in a window.
+
+    When role is set, walks the full tree (ignores max_depth) and
+    returns only elements matching that control type.
+    """
+    if sys.platform == "darwin":
+        return _do_list_elements_darwin(window_title, max_depth, role)
+
+    desktop = _get_desktop()
+
+    if window_title:
+        window = _find_window(desktop, window_title)
+        if not window:
+            return {"elements": [], "error": f"Window '{window_title}' not found"}
+    else:
+        windows = desktop.windows()
+        window = windows[0] if windows else None
+        if not window:
+            return {"elements": [], "error": "No windows found"}
+
+    try:
+        if role:
+            descendants = window.descendants()  # Full tree walk
+        else:
+            descendants = window.descendants(depth=max_depth)
+    except Exception as e:
+        return {"elements": [], "error": str(e)}
+
+    role_lower = role.lower() if role else None
+    elements = []
+    for elem in descendants:
+        d = _element_to_dict(elem)
+        if d and (d["name"] or d["role"]):
+            if role_lower and (d["role"] or "").lower() != role_lower:
+                continue
+            elements.append(d)
+
+    return {"elements": elements, "count": len(elements)}
+
+
+def do_get_focused_element() -> dict:
+    """Return the currently focused UI element.
+
+    Uses IUIAutomation::GetFocusedElement via pywinauto (Windows) or
+    AXFocusedUIElement via ApplicationServices (macOS).
+    Returns dict with 'found' bool and 'element' dict.
+    """
+    if sys.platform == "darwin":
+        from handson_platform.darwin_backend import ax_get_focused_element
+        return ax_get_focused_element()
+
+    try:
+        desktop = _get_desktop()
+        focused = desktop.get_focus()
+        elem = _element_to_dict(focused)
+        if elem:
+            return {"found": True, "element": elem}
+        return {"found": False, "error": "Focused element has no accessible info"}
+    except Exception as e:
+        return {"found": False, "error": str(e)}
+
+
+def do_smart_find(
+    name: str,
+    role: Optional[str] = None,
+    window_title: Optional[str] = None,
+    index: int = 0,
+) -> dict:
+    """Resilient element discovery: UIA first, then OCR fallback.
+
+    Returns dict with 'found', 'method' ('uia' or 'ocr'), and 'elements'.
+    """
+    # 1. Try UIA
+    try:
+        uia_result = do_find_element(name=name, role=role, window_title=window_title, index=index)
+        if uia_result.get("found") and uia_result["elements"]:
+            return {"found": True, "method": "uia", "elements": uia_result["elements"]}
+    except Exception:
+        pass  # UIA failed — fall through to OCR
+
+    # 2. Fall back to OCR
+    try:
+        from tools.ocr import do_find_text
+        ocr_result = do_find_text(name, window_title=window_title)
+        if ocr_result["matches"]:
+            # Normalize OCR matches to element-like dicts
+            elements = []
+            for m in ocr_result["matches"]:
+                elements.append({
+                    "name": m["text"],
+                    "role": "text",
+                    "x": m["x"],
+                    "y": m["y"],
+                    "width": m["width"],
+                    "height": m["height"],
+                    "value": "",
+                })
+            return {"found": True, "method": "ocr", "elements": elements}
+    except Exception:
+        pass
+
+    # Get framework hint for the error message
+    hint = ""
+    try:
+        from tools.framework_detect import do_detect_framework
+        fw = do_detect_framework(window_title)
+        if fw["framework"] != "unknown":
+            hint = f" [{fw['framework'].upper()}: {fw['hints'][0]}]"
+    except Exception:
+        pass
+
+    return {
+        "found": False,
+        "elements": [],
+        "error": f"'{name}' not found via accessibility tree or OCR. Try a regional screenshot to verify the element is visible.{hint}",
+    }
+
+
+# ------------------------------------------------------------------
+# MCP tool registration
+# ------------------------------------------------------------------
+
+def register(server) -> int:
+    """Register find_element, click_element, list_elements, get_focused_element, smart_find tools."""
+    import base64 as _b64
+    from mcp.server.fastmcp import Image as McpImage
+    from tools.safety import with_timeout, ActionTimeoutError
+
+    @server.tool()
+    def find_element(
+        name: str = "",
+        role: str = "",
+        window_title: str = "",
+        index: int = 0,
+    ) -> str:
+        """Find a UI element by name and/or role using the accessibility tree.
+
+        More reliable than coordinate guessing -- returns exact position and size.
+
+        Parameters:
+            name: Text label to search for (partial, case-insensitive match).
+            role: Control type -- Button, Edit, MenuItem, TabItem, etc.
+            window_title: Partial title of the target window (default: foreground).
+            index: Which match to return if multiple (0 = first, default).
+        """
+        try:
+            result = with_timeout(
+                lambda: do_find_element(
+                    name=name or None,
+                    role=role or None,
+                    window_title=window_title or None,
+                    index=index,
+                ),
+                timeout=10.0,
+            )
+        except ActionTimeoutError:
+            return f"Timed out after 10s searching for element name='{name}', role='{role}'. The accessibility tree may be unresponsive."
+        if not result["found"]:
+            return f"No element found matching name='{name}', role='{role}'. Error: {result.get('error', 'none')}"
+
+        lines = [f"Found {len(result['elements'])} matching element(s):"]
+        for i, elem in enumerate(result["elements"]):
+            lines.append(
+                f"  [{i}] {elem['role']} \"{elem['name']}\" "
+                f"at ({elem['x']},{elem['y']}) {elem['width']}x{elem['height']}"
+            )
+        return "\n".join(lines)
+
+    @server.tool()
+    def click_element(
+        name: str = "",
+        role: str = "",
+        window_title: str = "",
+        index: int = 0,
+    ) -> list:
+        """Find a UI element and click its center. More reliable than coordinate clicking.
+
+        Parameters:
+            name: Text label to search for (partial, case-insensitive match).
+            role: Control type -- Button, Edit, MenuItem, TabItem, etc.
+            window_title: Partial title of the target window (default: foreground).
+            index: Which match to click if multiple (0 = first, default).
+        """
+        try:
+            result = with_timeout(
+                lambda: do_click_element(
+                    name=name or None,
+                    role=role or None,
+                    window_title=window_title or None,
+                    index=index,
+                ),
+                timeout=10.0,
+            )
+        except ActionTimeoutError:
+            return f"Timed out after 10s trying to click element name='{name}', role='{role}'. The accessibility tree may be unresponsive."
+        if not result["success"]:
+            return f"Failed: {result['error']}"
+
+        from tools.screenshot import capture_screenshot
+        shot = capture_screenshot()
+        elem = result["element"]
+        msg = f"Clicked {elem['role']} \"{elem['name']}\" at ({result['clicked_at']['x']}, {result['clicked_at']['y']}). Screenshot: {shot['width']}x{shot['height']}"
+        if result.get("navigation_warning"):
+            msg += f"\n⚠️ {result['navigation_warning']}"
+        return [
+            McpImage(data=_b64.b64decode(shot["image"]), format="png"),
+            msg,
+        ]
+
+    @server.tool()
+    def list_elements(
+        window_title: str = "",
+        max_depth: int = 5,
+        role: str = "",
+    ) -> str:
+        """List accessible UI elements in a window. Use to discover what's clickable.
+
+        Parameters:
+            window_title: Partial title of the target window (default: foreground).
+            max_depth: How deep to traverse the element tree (default 5). Ignored when role is set.
+            role: Filter to this control type (e.g., "Spinner", "Button", "ComboBox"). When set, walks full tree.
+        """
+        try:
+            result = with_timeout(
+                lambda: do_list_elements(
+                    window_title=window_title or None,
+                    max_depth=max_depth,
+                    role=role or None,
+                ),
+                timeout=10.0,
+            )
+        except ActionTimeoutError:
+            return "Timed out after 10s listing UI elements. The accessibility tree may be unresponsive."
+        if not result["elements"]:
+            return f"No elements found. {result.get('error', '')}"
+
+        header = f"Found {result['count']} elements"
+        if role:
+            header += f" with role '{role}'"
+        header += ":"
+        lines = [header]
+        for i, elem in enumerate(result["elements"]):
+            name_str = f"\"{elem['name']}\"" if elem["name"] else "(unnamed)"
+            lines.append(
+                f"  [{i}] {elem['role']} {name_str} "
+                f"at ({elem['x']},{elem['y']}) {elem['width']}x{elem['height']}"
+            )
+            if i >= 100:
+                lines.append(f"  ... and {result['count'] - 100} more (use role filter to narrow)")
+                break
+        return "\n".join(lines)
+
+    @server.tool()
+    def get_focused_element() -> str:
+        """Get the currently focused UI element's name, role, value, and position.
+
+        Returns information about whatever widget currently has keyboard focus.
+        Useful for confirming which field will receive typed input.
+        """
+        try:
+            result = with_timeout(do_get_focused_element, timeout=5.0)
+        except ActionTimeoutError:
+            return "Timed out after 5s getting focused element."
+        if not result["found"]:
+            return f"Focus info unavailable. {result.get('error', 'UIA cannot see the focused widget in this application.')}"
+        e = result["element"]
+        value_str = f" value=\"{e['value']}\"" if e.get("value") else ""
+        return (
+            f"Focused: {e['role']} \"{e['name']}\"{value_str} "
+            f"at ({e['x']},{e['y']}) {e['width']}x{e['height']}"
+        )
+
+    @server.tool()
+    def smart_find(
+        name: str,
+        role: str = "",
+        window_title: str = "",
+        index: int = 0,
+    ) -> str:
+        """Find a UI element using accessibility tree first, then OCR fallback.
+
+        More reliable than find_element alone — automatically falls back to OCR
+        when the accessibility tree can't see the element (common with Qt, Electron,
+        Java apps).
+
+        Parameters:
+            name: Text label to search for (partial, case-insensitive match).
+            role: Control type hint (only used for accessibility search, ignored by OCR).
+            window_title: Partial title of the target window (default: foreground).
+            index: Which match to return if multiple (0 = first, default).
+        """
+        try:
+            result = with_timeout(
+                lambda: do_smart_find(
+                    name=name,
+                    role=role or None,
+                    window_title=window_title or None,
+                    index=index,
+                ),
+                timeout=15.0,
+            )
+        except ActionTimeoutError:
+            return f"Timed out after 15s searching for '{name}'. Both accessibility and OCR failed to respond."
+        if not result["found"]:
+            return f"Not found: {result.get('error', 'unknown')}"
+
+        method = result["method"]
+        lines = [f"Found {len(result['elements'])} match(es) via {method}:"]
+        for i, elem in enumerate(result["elements"]):
+            lines.append(
+                f"  [{i}] {elem['role']} \"{elem['name']}\" "
+                f"at ({elem['x']},{elem['y']}) {elem['width']}x{elem['height']}"
+            )
+        return "\n".join(lines)
+
+    return 5
