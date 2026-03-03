@@ -33,7 +33,13 @@ Claude Code is powerful, but it's blind — it can't see your screen or interact
 ### Install
 
 ```bash
+# From GitLab
 claude plugin marketplace add git@gitlab.com:3spky5u/HandsOn.git
+
+# From Codeberg
+claude plugin marketplace add git@codeberg.org:3spky5u/HandsOn.git
+
+# Then install
 claude plugin install handson
 ```
 
