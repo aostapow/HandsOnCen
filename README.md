@@ -5,13 +5,23 @@
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-lightgrey?style=flat-square)]()
 [![Claude Code Plugin](https://img.shields.io/badge/Claude%20Code-plugin-blueviolet?style=flat-square)](https://docs.anthropic.com/en/docs/claude-code)
 [![MCP](https://img.shields.io/badge/MCP-server-orange?style=flat-square)](https://modelcontextprotocol.io)
-[![Tools](https://img.shields.io/badge/tools-33-green?style=flat-square)]()
+[![Tools](https://img.shields.io/badge/tools-34-green?style=flat-square)]()
 
 Give Claude eyes and hands. A Claude Code plugin that lets Claude see your screen and interact with any application on your desktop.
 
 <!-- TODO: ![Demo GIF](docs/demo.gif) -->
 
 > **Alpha software.** HandsOn works and is genuinely useful, but Claude will sometimes stumble through tasks — misclicking sidebar links, scrolling the wrong container, needing multiple attempts to find the right element. Complex multi-step workflows (like filling out a Reddit post) may take several retries to get right. It's getting better with each release, but set your expectations accordingly.
+
+## What's New in v0.3.0
+
+- **Window-cropped visual detection** — When a target window is set, visual analysis is cropped to that window's bounds, eliminating noise from the terminal and other background apps
+- **30-50% token reduction** — Compact output across all tools: shorter class names, removed redundant formatting, tighter coordinate notation
+- **Unnamed element filtering** — `list_elements` now skips unnamed Pane/Group/Custom elements that add noise without value (common in Steam, Electron apps, etc.)
+- **Process-tree terminal refocus** — `set_target_window("")` walks the process tree to find and refocus the host terminal instead of guessing by title
+- **Immediate window focus** — `set_target_window()` now focuses the target window immediately on set, not just before the next input action
+- **Visual detect module** — New CV-based UI region detection for apps with limited accessibility support
+- **Self-correcting click** — `click_text` automatically retries at offset positions when the initial center click produces no visual change
 
 ## Why HandsOn?
 
@@ -80,7 +90,7 @@ Use `/handson` to start a guided automation session with permission prompts.
 
 ## Tools
 
-HandsOn provides 33 tools across 12 categories:
+HandsOn provides 34 tools across 12 categories:
 
 | Category | Tools | What They Do |
 |----------|-------|--------------|
@@ -191,6 +201,7 @@ Claude detects Java Swing, knows UIA won't work, uses OCR to find the button tex
 
 HandsOn was inspired by:
 
+- **[Empirica](https://github.com/Nubaeon/empirica)** by Nubaeon (David S. L. Van Assche) — for pioneering the SVG badge approach in Claude Code plugins, and for ideas around session-aware tooling
 - **[mcp-pyautogui](https://github.com/hathibelagal-dev/mcp-pyautogui)** by hathibelagal-dev — for demonstrating that PyAutoGUI + MCP is a viable approach to desktop automation
 - **[MCPControl](https://github.com/claude-did-this/MCPControl)** by claude-did-this — for showing how to give AI agents full Windows desktop control
 
