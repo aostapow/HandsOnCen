@@ -382,3 +382,4 @@ Keep the playbook under **200 lines**. When it exceeds 200 lines:
 1. Merge entries for the same app
 2. Remove patterns that haven't been useful
 3. Prefer general patterns over app-specific ones when they overlap
+

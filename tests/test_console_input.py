@@ -83,3 +83,4 @@ class TestConsoleKeyInput:
 
         result = _send_keys_to_console(100, "enter")
         assert result["success"] is True
+

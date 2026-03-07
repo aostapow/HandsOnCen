@@ -142,3 +142,4 @@ class TestBaselineState:
             assert mod._baseline is None
         finally:
             mod._baseline = old
+

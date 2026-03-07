@@ -86,3 +86,4 @@ How HandsOn works with different UI toolkits on Windows.
 | OCR misses text | Image too large (>4096px) or dark background | Automatic: downscale + inversion retry built in |
 | Electron app shows only frame | Accessibility flag not set | Relaunch with `--force-renderer-accessibility` |
 | Java app completely opaque | JAB not enabled | Run `jabswitch -enable` and restart app |
+

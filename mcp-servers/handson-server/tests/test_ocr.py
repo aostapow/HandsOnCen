@@ -90,3 +90,4 @@ class TestContentAreaScoring:
             # Standard (y, x) order: y=50 first
             assert matches[0]["y"] == 50
             assert matches[1]["y"] == 400
+

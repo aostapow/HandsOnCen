@@ -282,3 +282,4 @@ class TestRegister:
         from tools.ui_automation import register
         count = register(server)
         assert count == 6
+

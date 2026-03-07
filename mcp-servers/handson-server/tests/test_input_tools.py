@@ -107,3 +107,4 @@ class TestClickVisualChange:
 
         assert result["visual_change"] is True
         assert "navigation_warning" in result
+

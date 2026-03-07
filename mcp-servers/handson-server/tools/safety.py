@@ -114,3 +114,4 @@ def check_desktop_guard() -> str | None:
     if _desktop_state.get("on_isolated", False):
         return "On isolated desktop."
     return None
+

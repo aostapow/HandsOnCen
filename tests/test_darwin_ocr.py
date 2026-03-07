@@ -96,3 +96,4 @@ class TestVisionOCR:
                 assert isinstance(words, list)
         finally:
             os.unlink(path)
+

@@ -54,3 +54,4 @@ class TestScreenshotManager:
         assert len(screenshots) == 3
         for i in range(len(screenshots) - 1):
             assert screenshots[i]["created"] >= screenshots[i + 1]["created"]
+

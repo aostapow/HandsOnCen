@@ -301,3 +301,4 @@ def register(server) -> int:
         return "No target window set."
 
     return 2
+

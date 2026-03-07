@@ -129,3 +129,4 @@ class TestRegister:
         count = register(mock_server)
         assert count == 2
         assert mock_server.tool.call_count == 2
+

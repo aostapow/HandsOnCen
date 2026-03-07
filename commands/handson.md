@@ -12,3 +12,4 @@ Before proceeding, confirm the user's preferences:
 3. Any windows or applications to avoid?
 
 Use the handson skill for the full workflow guidance.
+

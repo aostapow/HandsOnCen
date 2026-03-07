@@ -72,3 +72,4 @@ class TestClassifyWindowNative:
         assert "process_name" in result
         assert "pid" in result
         assert result["type"] in ("terminal", "browser", "electron", "generic")
+

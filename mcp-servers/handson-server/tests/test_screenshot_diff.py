@@ -43,3 +43,4 @@ class TestCompareScreenshots:
         after = _make_b64(arr)
         diff = compare_screenshots(before, after)
         assert 0.0 < diff < 0.2
+

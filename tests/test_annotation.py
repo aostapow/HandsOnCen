@@ -46,3 +46,4 @@ class TestAnnotateScreenshot:
         original_data = list(img.getdata())
         annotate_image(img, grid=True, mouse_pos=(200, 150), elements=None)
         assert list(img.getdata()) == original_data
+

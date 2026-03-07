@@ -99,3 +99,4 @@ list_elements(role="ComboBox")  → all dropdowns
 - Multi-word OCR queries work: `find_text("Save As PDF")` matches adjacent words
 - OCR automatically retries with image inversion for dark backgrounds
 - The accessibility tree is DPI-aware — coordinates are always screen-absolute
+

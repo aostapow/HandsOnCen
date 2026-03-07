@@ -247,3 +247,4 @@ def register(server) -> int:
         ]
 
     return 2
+

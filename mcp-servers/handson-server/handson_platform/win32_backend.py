@@ -77,3 +77,4 @@ def get_loaded_modules(pid) -> list[str]:
 
 def find_host_terminal_hwnd() -> int | None:
     raise NotImplementedError("win32_backend: implement in Task 2")
+

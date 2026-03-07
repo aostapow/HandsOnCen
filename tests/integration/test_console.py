@@ -32,3 +32,4 @@ class TestConsoleType:
         # Close cmd
         do_type_text("exit")
         do_send_keys("enter")
+

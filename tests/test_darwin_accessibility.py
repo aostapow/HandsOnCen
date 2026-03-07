@@ -147,3 +147,4 @@ class TestDarwinUiAutomationRouting:
             mock_ax.return_value = {"found": False, "error": "test"}
             result = do_get_focused_element()
             mock_ax.assert_called_once()
+

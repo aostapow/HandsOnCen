@@ -417,3 +417,4 @@ class TestVisualDetectFallback:
         full_msg = f"{base_msg}{visual_detect_text}"
         assert "Detected UI regions" in full_msg
         assert "Annotated screenshot" in full_msg
+

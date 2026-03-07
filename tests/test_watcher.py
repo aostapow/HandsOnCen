@@ -201,3 +201,4 @@ class TestWatcherLifecycle:
         result = do_get_notifications(clear=False)
         assert result["count"] == 1
         assert len(_state.events) == 1  # not cleared
+

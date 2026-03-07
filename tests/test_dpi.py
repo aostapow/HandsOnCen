@@ -66,3 +66,4 @@ class TestDarwinDpi:
         scale = tools.screenshot.get_dpi_scale()
         assert isinstance(scale, float)
         assert scale >= 1.0
+

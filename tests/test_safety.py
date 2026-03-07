@@ -71,3 +71,4 @@ class TestDesktopGuard:
         from tools.safety import check_desktop_guard
         result = check_desktop_guard()
         assert result is None  # Not on isolated desktop is fine — returns None
+

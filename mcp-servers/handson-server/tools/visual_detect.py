@@ -215,3 +215,4 @@ def format_regions_text(regions: list[dict]) -> str:
             line = f'[{i+1}] ({r["x"]},{r["y"]}) {r["w"]}x{r["h"]} {cls}'
         lines.append(line)
     return "\n".join(lines)
+

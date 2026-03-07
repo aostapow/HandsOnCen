@@ -96,3 +96,4 @@ class TestDarwinSmoke:
         scale = get_dpi_scale()
         assert isinstance(scale, float)
         assert 1.0 <= scale <= 3.0
+

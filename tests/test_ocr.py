@@ -776,3 +776,4 @@ class TestRegister:
         from tools.ocr import register
         count = register(server)
         assert count == 2
+

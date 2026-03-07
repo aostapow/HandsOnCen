@@ -619,3 +619,4 @@ def register(server) -> int:
         return f"Failed to launch {path}: {result['error']}"
 
     return 3
+

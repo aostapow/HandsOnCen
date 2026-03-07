@@ -90,3 +90,4 @@ First public release. 26 MCP tools for screen capture and desktop automation.
 - `/handson` slash command for guided session startup
 - Built-in skill with targeting strategy, workflow patterns, and best practices
 - Agent Guide and Framework Support reference docs
+

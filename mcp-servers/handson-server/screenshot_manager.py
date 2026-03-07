@@ -100,3 +100,4 @@ class ScreenshotManager:
                 os.remove(oldest["path"])
             except OSError:
                 pass
+

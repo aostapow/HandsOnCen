@@ -651,3 +651,4 @@ def register(server) -> int:
         return f"UI fingerprint: {result['hash']} ({result['element_count']} elements)"
 
     return 6
+

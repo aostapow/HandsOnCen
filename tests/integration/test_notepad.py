@@ -42,3 +42,4 @@ class TestNotepadType:
         pyautogui.press("tab")  # Focus "Don't Save"
         time.sleep(0.1)
         pyautogui.press("enter")
+

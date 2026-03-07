@@ -36,3 +36,4 @@ class TestElementTargeting:
         pyautogui.press("escape")
         time.sleep(0.2)
         pyautogui.hotkey("alt", "F4")
+

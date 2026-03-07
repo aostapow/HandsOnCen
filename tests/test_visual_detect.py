@@ -225,3 +225,4 @@ class TestEdgeCases:
         mock_ocr.side_effect = None  # reset
         texts = detect_text(Image.new("RGB", (100, 100), (255, 255, 255)))
         assert texts == []
+

@@ -10,3 +10,4 @@ else:
         f"HandsOn does not support platform '{sys.platform}'. "
         f"Supported: win32, darwin."
     )
+

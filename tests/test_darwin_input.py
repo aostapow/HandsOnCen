@@ -232,3 +232,4 @@ class TestDarwinGetForegroundType:
             mock_classify.assert_called_once()
             assert result["type"] == "browser"
             assert result["process_name"] == "Safari"
+

@@ -94,3 +94,4 @@ class TestRegister:
         from tools.batch import register
         count = register(server)
         assert count == 1
+

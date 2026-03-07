@@ -93,3 +93,4 @@ class TestDarwinFrameworkDetection:
             assert "process_name" in result
             assert "class_name" in result
             assert isinstance(result["hints"], list)
+

@@ -217,3 +217,4 @@ class TestRegister:
         from tools.framework_detect import register
         count = register(server)
         assert count == 1
+

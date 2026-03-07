@@ -143,3 +143,4 @@ class TestDarwinStubFunctions:
                 fn(pid=1)
             else:
                 fn()
+

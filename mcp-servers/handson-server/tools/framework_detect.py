@@ -365,3 +365,4 @@ def register(server) -> int:
         return "\n".join(lines)
 
     return 1
+

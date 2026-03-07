@@ -60,3 +60,4 @@ class TestDarwinFocusWindow:
         assert isinstance(result, dict)
         assert result["success"] is False
         assert "error" in result
+

@@ -456,3 +456,4 @@ class TestRegister:
         count = register(mock_server)
         assert count == 7
         assert mock_server.tool.call_count == 7
+

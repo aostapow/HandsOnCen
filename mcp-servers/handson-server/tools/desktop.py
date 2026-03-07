@@ -360,3 +360,4 @@ def register(server) -> int:
         return do_virtual_desktop(action)
 
     return 1
+

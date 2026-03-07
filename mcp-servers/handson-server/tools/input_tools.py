@@ -696,3 +696,4 @@ def register(server) -> int:
         return f"Mouse position: ({result['x']}, {result['y']})"
 
     return 7
+

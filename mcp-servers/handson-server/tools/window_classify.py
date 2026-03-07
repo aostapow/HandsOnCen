@@ -170,3 +170,4 @@ def get_foreground_type() -> dict:
 def invalidate_cache():
     """Clear the classification cache. Called after focus_window changes."""
     _cache.clear()
+

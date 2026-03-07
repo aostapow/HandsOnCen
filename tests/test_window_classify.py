@@ -111,3 +111,4 @@ class TestGetForegroundType:
         result = get_foreground_type()
         assert result["type"] == "browser"
         mock_classify.assert_called_once_with(12345)
+

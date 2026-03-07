@@ -936,3 +936,4 @@ def run_ocr_native(image_path: str) -> list[dict]:
 
 def get_loaded_modules(pid) -> list[str]:
     raise NotImplementedError("darwin_backend: implement in Task 8")
+

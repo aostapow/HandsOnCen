@@ -271,3 +271,4 @@ def register(server) -> int:
         return do_configure_uac(action)
 
     return 1
+

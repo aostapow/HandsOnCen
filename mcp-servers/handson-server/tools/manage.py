@@ -126,3 +126,4 @@ def register(server) -> int:
             return f"Screenshot limit set to {keep}. Current count: {remaining}."
 
     return 2
+
