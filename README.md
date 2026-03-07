@@ -1,6 +1,6 @@
 # HandsOn
 
-[![GitLab release](https://img.shields.io/gitlab/v/release/3spky5u/HandsOn?style=flat-square)](https://gitlab.com/3spky5u/HandsOn/-/releases)
+[![GitHub release](https://img.shields.io/github/v/release/3spky5u-oss/HandsOn?style=flat-square)](https://github.com/3spky5u-oss/HandsOn/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-lightgrey?style=flat-square)]()
 [![Claude Code Plugin](https://img.shields.io/badge/Claude%20Code-plugin-blueviolet?style=flat-square)](https://docs.anthropic.com/en/docs/claude-code)
@@ -43,13 +43,16 @@ Claude Code is powerful, but it's blind — it can't see your screen or interact
 ### Install
 
 ```bash
+# From GitHub (recommended)
+claude plugin marketplace add 3spky5u-oss/HandsOn
+claude plugin install handson
+
 # From GitLab
 claude plugin marketplace add git@gitlab.com:3spky5u/HandsOn.git
+claude plugin install handson
 
 # From Codeberg
 claude plugin marketplace add git@codeberg.org:3spky5u/HandsOn.git
-
-# Then install
 claude plugin install handson
 ```
 
