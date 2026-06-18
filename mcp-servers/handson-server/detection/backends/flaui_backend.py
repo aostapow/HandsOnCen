@@ -25,7 +25,7 @@ def _sidecar_available() -> bool:
 def _call_sidecar(command: str, params: dict, timeout: float = 15.0) -> dict:
     if not _sidecar_available():
         return {"error": "FlaUI sidecar not built. Run build in handson-uia-sidecar/"}
-    req = json.dumps({"command": command, "params": params})
+    req = json.dumps({"Command": command, "Params": params})
     try:
         proc = subprocess.run(
             [_SIDECAR_PATH],

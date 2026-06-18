@@ -341,6 +341,7 @@ def do_get_focused_element() -> dict:
         from handson_platform.darwin_backend import ax_get_focused_element
         return ax_get_focused_element()
 
+    err = ""
     try:
         from pywinauto import Desktop
         desktop = Desktop(backend="uia")
@@ -351,7 +352,25 @@ def do_get_focused_element() -> dict:
             return {"found": True, "element": _legacy_element(elem.to_dict())}
         return {"found": False, "error": "Focused element has no accessible info"}
     except Exception as e:
-        return {"found": False, "error": str(e)}
+        err = str(e)
+
+    # Fallback: UIA GetFocusedElement when pywinauto Desktop.get_focus() fails.
+    try:
+        from pywinauto.uia_defines import IUIA
+        from pywinauto.controls.uiawrapper import UIAWrapper
+        from pywinauto.uia_element_info import UIAElementInfo
+        from detection.backends.uia_backend import _pywinauto_to_element
+
+        raw = IUIA().iuia.GetFocusedElement()
+        if raw:
+            wrapper = UIAWrapper(UIAElementInfo(raw))
+            elem = _pywinauto_to_element(wrapper)
+            if elem:
+                return {"found": True, "element": _legacy_element(elem.to_dict())}
+    except Exception as fallback_err:
+        err = err or str(fallback_err)
+
+    return {"found": False, "error": err or "Cannot get focused element"}
 
 
 def do_smart_find(

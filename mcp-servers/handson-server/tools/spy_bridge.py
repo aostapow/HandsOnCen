@@ -16,7 +16,7 @@ def _call(command: str, params: dict) -> dict:
     exe = _sidecar_exe()
     if not exe:
         return {"found": False, "error": "handson-spy-sidecar not built"}
-    req = json.dumps({"command": command, "params": params})
+    req = json.dumps({"Command": command, "Params": params})
     try:
         proc = subprocess.run(
             [str(exe)],

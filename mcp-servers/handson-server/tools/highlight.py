@@ -21,7 +21,7 @@ def _call_sidecar(command: str, params: dict) -> dict:
     exe = _sidecar_path()
     if not exe:
         return {"error": "spy sidecar not built"}
-    req = json.dumps({"command": command, "params": params})
+    req = json.dumps({"Command": command, "Params": params})
     try:
         proc = subprocess.run(
             [str(exe)],

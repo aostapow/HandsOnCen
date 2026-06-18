@@ -18,7 +18,10 @@ static class Program
                 WriteError("empty request");
                 return 1;
             }
-            var req = JsonSerializer.Deserialize<Request>(line);
+            var req = JsonSerializer.Deserialize<Request>(line, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true,
+            });
             if (req == null || string.IsNullOrEmpty(req.Command))
             {
                 WriteError("invalid request");

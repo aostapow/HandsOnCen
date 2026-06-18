@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.4.2 — 2026-06-18
+
+Bug-fix release after full MCP tool verification (55 tools).
+
+### Spy sidecar
+- Fix JSON protocol: Python now sends `Command`/`Params` keys expected by C# sidecars
+- Case-insensitive JSON deserialization in spy and UIA sidecars
+- Partial window title matching in `ResolveWindow` (consistent with `find_matching_window`)
+- Safe property access and `IntPtr` serialization in `InspectElement`
+- Fault-tolerant tree walk when UIA properties are unsupported
+
+### OCR
+- Coerce RapidOCR `confidence` and bounding-box coordinates to numbers before comparison/sort
+- Normalize word geometry via `_normalize_words()` to prevent `str` vs `float` sort crashes
+- Fixes `find_text` and `click_text` crashing the MCP server
+
+### Accessibility
+- `get_focused_element` falls back to `IUIA.GetFocusedElement()` when pywinauto `get_focus()` fails
+
+### Tests
+- Add `tests/mcp_tools_smoke.py` — end-to-end smoke test for all MCP tool implementations
+
 ## 0.2.2 — 2026-02-22
 
 macOS support (alpha), cross-platform platform layer, Windows reliability fixes. 28 MCP tools.

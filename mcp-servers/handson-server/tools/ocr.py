@@ -40,6 +40,26 @@ def _get_window_rect(window_title: str) -> Optional[dict]:
         "h": win["height"],
     }
 
+
+def _coerce_int(value, default: int = 0) -> int:
+    """Normalize OCR geometry fields that may arrive as strings."""
+    try:
+        return int(round(float(value)))
+    except (TypeError, ValueError):
+        return default
+
+
+def _normalize_word(word: dict) -> dict:
+    word["x"] = _coerce_int(word.get("x"))
+    word["y"] = _coerce_int(word.get("y"))
+    word["width"] = _coerce_int(word.get("width"))
+    word["height"] = _coerce_int(word.get("height"))
+    return word
+
+
+def _normalize_words(words: list[dict]) -> list[dict]:
+    return [_normalize_word(w) for w in words]
+
 # ---------------------------------------------------------------------------
 # RapidOCR backend (required dependency)
 # ---------------------------------------------------------------------------
@@ -100,11 +120,15 @@ def _rapid_ocr_on_image(image_path: str) -> list[dict]:
     words = []
     min_confidence = 0.3
     for box_points, text, confidence in results:
-        if confidence < min_confidence:
+        try:
+            conf = float(confidence)
+        except (TypeError, ValueError):
+            conf = 0.0
+        if conf < min_confidence:
             continue
         # Box points: [[x1,y1], [x2,y2], [x3,y3], [x4,y4]] (clockwise from top-left)
-        xs = [p[0] for p in box_points]
-        ys = [p[1] for p in box_points]
+        xs = [float(p[0]) for p in box_points]
+        ys = [float(p[1]) for p in box_points]
         line_x = round(min(xs))
         line_y = round(min(ys))
         line_w = round(max(xs) - min(xs))
@@ -145,7 +169,7 @@ def _rapid_ocr_on_image(image_path: str) -> list[dict]:
             item["width"] = round(item["width"] * inv)
             item["height"] = round(item["height"] * inv)
 
-    return words
+    return _normalize_words(words)
 
 
 def _deduplicate_words(words: list[dict], tolerance: int = 5) -> list[dict]:
@@ -222,7 +246,7 @@ def _windows_ocr_on_image(image_path: str) -> list[dict]:
                         "width": int(rect.width),
                         "height": int(rect.height),
                     })
-            return words
+            return _normalize_words(words)
 
         return asyncio.run(_run())
     except Exception:
@@ -234,7 +258,7 @@ def _run_ocr_engine(image_path: str) -> list[dict]:
     if sys.platform == "darwin":
         try:
             from handson_platform import run_ocr_native
-            return run_ocr_native(image_path)
+            return _normalize_words(run_ocr_native(image_path))
         except ImportError:
             pass
 
@@ -247,7 +271,7 @@ def _run_ocr_engine(image_path: str) -> list[dict]:
         if windows:
             return windows
 
-    return rapid
+    return rapid or []
 
 
 def _merge_ocr_results(results_list: list[list[dict]], iou_threshold: float = 0.5) -> list[dict]:
@@ -266,7 +290,7 @@ def _merge_ocr_results(results_list: list[list[dict]], iou_threshold: float = 0.
                     and abs(m["y"] - w["y"]) <= 8
                 ):
                     dup = True
-                    if w.get("confidence", 0) > m.get("confidence", 0):
+                    if float(w.get("confidence", 0)) > float(m.get("confidence", 0)):
                         m.update(w)
                     if m.get("engine") != w.get("engine"):
                         m["engine"] = "both"
