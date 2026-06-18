@@ -964,7 +964,9 @@ def register(server) -> int:
             )
         except ActionTimeoutError:
             return "Timed out building detection context."
-        if not ctx:
+        if ctx.get("error") and not ctx.get("screenshot_path"):
+            return f"No context available: {ctx['error']}"
+        if not ctx or not ctx.get("screenshot_path"):
             return "No context available."
         lines = [
             f"Detection context for '{name or '(all)'}':",

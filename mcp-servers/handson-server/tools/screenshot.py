@@ -117,9 +117,26 @@ def crop_region(img: Image.Image, region: dict) -> Image.Image:
     return img.crop((x, y, x + w, y + h))
 
 
+def _region_for_window(window_title: str) -> Optional[dict]:
+    """Resolve a window title to a screenshot crop region."""
+    from tools.windows import find_matching_window, do_list_windows
+
+    match = find_matching_window(window_title, do_list_windows())
+    win = match.get("window")
+    if not win:
+        return None
+    return {
+        "x": max(0, win["x"]),
+        "y": max(0, win["y"]),
+        "w": win["width"],
+        "h": win["height"],
+    }
+
+
 def capture_screenshot(
     monitor_index: Optional[int] = None,
     region: Optional[dict] = None,
+    window_title: Optional[str] = None,
 ) -> dict:
     """Capture the screen (or a region) and return metadata + base64 PNG.
 
@@ -130,6 +147,8 @@ def capture_screenshot(
         Defaults to 1 (primary) when None.
     region : dict | None
         ``{"x": int, "y": int, "w": int, "h": int}`` to crop after capture.
+    window_title : str | None
+        When *region* is not set, crop to the matching window's bounds.
 
     Returns
     -------
@@ -137,6 +156,9 @@ def capture_screenshot(
         ``{"image": str, "width": int, "height": int, "path": str}``
     """
     global _sct
+
+    if region is None and window_title:
+        region = _region_for_window(window_title)
 
     if _sct is None:
         _sct = mss.mss()

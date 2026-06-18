@@ -486,5 +486,9 @@ class LayeredDetector:
     return result
 
   def build_detection_context(self, query: LocatorQuery) -> dict:
-    opts = ResolveOptions(agentic=True)
-    return self._agentic_layer(query).agentic_context or {}
+    result = self._agentic_layer(query)
+    if result.agentic_context:
+      return result.agentic_context
+    if result.error:
+      return {"error": result.error}
+    return {}

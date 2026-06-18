@@ -2,24 +2,24 @@
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 import sys
+from pathlib import Path
 from typing import Optional
 
 from detection.backends.base import DetectionBackend
 from detection.element_model import DetectedElement
 
-_SIDECAR_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-    "handson-uia-sidecar",
-    "publish",
-    "handson-uia-sidecar.exe",
+_SIDECAR_PATH = (
+    Path(__file__).resolve().parents[3]
+    / "handson-uia-sidecar"
+    / "publish"
+    / "handson-uia-sidecar.exe"
 )
 
 
 def _sidecar_available() -> bool:
-    return sys.platform == "win32" and os.path.isfile(_SIDECAR_PATH)
+    return sys.platform == "win32" and _SIDECAR_PATH.is_file()
 
 
 def _call_sidecar(command: str, params: dict, timeout: float = 15.0) -> dict:
@@ -28,7 +28,7 @@ def _call_sidecar(command: str, params: dict, timeout: float = 15.0) -> dict:
     req = json.dumps({"Command": command, "Params": params})
     try:
         proc = subprocess.run(
-            [_SIDECAR_PATH],
+            [str(_SIDECAR_PATH)],
             input=req + "\n",
             capture_output=True,
             text=True,

@@ -173,6 +173,32 @@ class TestCaptureScreenshot:
         assert result["width"] == 200
         assert result["height"] == 200
 
+    def test_with_window_title_crops_to_window(self):
+        from tools import screenshot as mod
+
+        fake_shot = _make_mss_monitor_shot(1920, 1080)
+        fake_sct = mock.MagicMock()
+        fake_sct.monitors = [
+            {"left": 0, "top": 0, "width": 1920, "height": 1080},
+            {"left": 0, "top": 0, "width": 1920, "height": 1080},
+        ]
+        fake_sct.grab.return_value = fake_shot
+
+        old_sct = getattr(mod, "_sct", None)
+        mod._sct = fake_sct
+
+        fake_path = "/tmp/handson_fake/screenshot.png"
+        fake_window = {"x": 50, "y": 60, "width": 300, "height": 200}
+        with mock.patch.object(mod, "screenshot_manager") as mock_mgr, \
+             mock.patch("tools.windows.find_matching_window", return_value={"window": fake_window}), \
+             mock.patch("tools.windows.do_list_windows", return_value=[]):
+            mock_mgr.save.return_value = fake_path
+            result = mod.capture_screenshot(window_title="Notepad")
+
+        mod._sct = old_sct
+        assert result["width"] == 300
+        assert result["height"] == 200
+
     def test_returns_original_dimensions_when_downscaled(self):
         """capture_screenshot should return original_width/original_height."""
         result = self._patch_and_capture(width=3840, height=2160)

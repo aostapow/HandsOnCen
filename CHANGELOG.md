@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.4.4 — 2026-06-18
+
+Bug-fix release for visual detection and FlaUI sidecar discovery.
+
+### Screenshot / detection
+- **`capture_screenshot(window_title=...)`** — accept optional `window_title` and crop to the matching window bounds (fixes `detect_visual_regions`, `build_detection_context`, visual/template/agentic layers, and object snapshots)
+- **`build_detection_context`** — surface the underlying error instead of a generic "No context available."
+
+### FlaUI sidecar
+- Fix sidecar path resolution: `flaui_backend` now looks under `mcp-servers/handson-uia-sidecar/` (aligned with `spy_bridge`)
+
+### Tests
+- `test_screenshot_tool.py` — cover `window_title` cropping
+
 ## 0.4.3 — 2026-06-18
 
 Stability release fixing MCP disconnects (`Connection closed` / `-32000`) during agentic sessions.
