@@ -57,16 +57,10 @@ def get_foreground_title() -> str:
     if get_platform() == "darwin":
         from handson_platform import get_foreground_title as _darwin_title
         return _darwin_title()
-    if get_platform() != "windows":
-        return ""
-    import ctypes
-    hwnd = ctypes.windll.user32.GetForegroundWindow()
-    length = ctypes.windll.user32.GetWindowTextLengthW(hwnd)
-    if length == 0:
-        return ""
-    buf = ctypes.create_unicode_buffer(length + 1)
-    ctypes.windll.user32.GetWindowTextW(hwnd, buf, length + 1)
-    return buf.value
+    if get_platform() == "windows":
+        from handson_platform import get_foreground_title as _win_title
+        return _win_title()
+    return ""
 
 
 def find_matching_window(title: str, windows: list[dict]) -> dict:
@@ -499,7 +493,8 @@ def do_list_windows() -> List[dict]:
     """
     plat = get_platform()
     if plat == "windows":
-        return _list_windows_win32()
+        from handson_platform import list_windows_native
+        return list_windows_native()
     elif plat == "darwin":
         from handson_platform import list_windows_native
         return list_windows_native()
@@ -526,7 +521,8 @@ def do_focus_window(title: str, action: str = "focus") -> dict:
     action = validate_window_action(action)
     plat = get_platform()
     if plat == "windows":
-        return _focus_window_win32(title, action)
+        from handson_platform import focus_window_native
+        return focus_window_native(title, action)
     elif plat == "darwin":
         from handson_platform import focus_window_native
         return focus_window_native(title, action)

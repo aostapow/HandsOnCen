@@ -4,20 +4,22 @@ How HandsOn works with different UI toolkits on Windows.
 
 ## Support Matrix
 
-| Framework | UIA Support | find_element | list_elements | OCR needed? | Configuration |
-|-----------|------------|-------------|--------------|------------|---------------|
-| Qt5/Qt6 (QWidget) | Partial | Standard widgets | Standard widgets | Custom widgets, QML | None |
-| Qt Quick / QML | Poor | Only with Accessible{} | Limited | Most content | None |
-| WPF | Full | All controls | All controls | Custom canvas only | None |
-| WinForms (.NET 5+) | Good | Standard controls | Standard controls | Owner-drawn | None |
-| Electron (with flag) | Good | ARIA-mapped elements | ARIA-mapped | Canvas content | `--force-renderer-accessibility` |
-| Electron (no flag) | None | Nothing | Nothing | Everything | Enable flag |
-| Win32 / MFC | Partial | Common Controls | Common Controls | Owner-drawn | None |
-| Java Swing | None (UIA) | Not via UIA | Not via UIA | Primary method | `jabswitch -enable` for JAB |
-| JavaFX | Full | Standard controls | Standard controls | Canvas, WebView | None |
-| GTK on Windows | None | Nothing | Nothing | Everything | None available |
-| UWP / WinUI | Full | XAML controls | XAML controls | Custom canvas only | None |
-| Chromium browsers | Conditional | Page elements | Page elements | Canvas/WebGL | None |
+| Framework | Primary Backend | UIA Support | find_element | smart_find cascade | Configuration |
+|-----------|----------------|------------|-------------|-------------------|---------------|
+| Qt5/Qt6 (QWidget) | UIA | Partial | Standard widgets | UIA → OCR → visual | None |
+| Qt Quick / QML | OCR/visual | Poor | Limited | OCR → visual | None |
+| WPF | UIA + AutomationId | Full | All controls | UIA → FlaUI | None |
+| WinForms (.NET 5+) | UIA / FlaUI | Good | Standard controls | UIA → FlaUI → MSAA | Build FlaUI sidecar |
+| Electron (with flag) | UIA | Good | ARIA-mapped | UIA → OCR | `--force-renderer-accessibility` |
+| Electron (no flag) | OCR/visual | None | Nothing | OCR → visual | Enable flag |
+| Win32 / MFC | MSAA + Win32 | Partial | Common Controls | UIA → MSAA → Win32 → OCR | None |
+| Java Swing | JAB | None (UIA) | Via JAB | JAB → OCR | `jabswitch -enable` |
+| JavaFX | UIA + JAB | Full | Standard controls | UIA → JAB → OCR | None |
+| GTK on Windows | OCR/visual | None | Nothing | OCR → visual | None |
+| UWP / WinUI | UIA + AutomationId | Full | XAML controls | UIA | None |
+| Chromium browsers | UIA / Playwright | Conditional | Page elements | Playwright preferred | None |
+
+See [DETECTION_ARCHITECTURE.md](DETECTION_ARCHITECTURE.md) for backend details.
 
 ## Framework Details
 

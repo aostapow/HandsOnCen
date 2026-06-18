@@ -13,6 +13,15 @@ Give Claude eyes and hands. A Claude Code plugin that lets Claude see your scree
 
 > **Alpha software.** HandsOn works and is genuinely useful, but Claude will sometimes stumble through tasks — misclicking sidebar links, scrolling the wrong container, needing multiple attempts to find the right element. Complex multi-step workflows (like filling out a Reddit post) may take several retries to get right. It's getting better with each release, but set your expectations accordingly.
 
+## What's New in v0.4.0
+
+- **Methodical discovery protocol** — `observe_ui`, `plan_probes`, `apply_probe`, and `discover_target` for reversible UI revelation (menus, tabs, modals) instead of random clicks
+- **Layered detection** — Repository → strategy memory → native UIA/MSAA/JAB → dual OCR → visual → agentic fallback via `smart_find`
+- **Spy sidecar** — `spy_inspect`, `spy_walk_visible`, persistent highlight overlay, and improved `walk_tree` with depth/visibility filters
+- **Template matching** — `find_by_template` for icon-only controls using external image files
+- **Object repository** — UFT-style object snapshots and repo find/upsert in `~/.handson/repositories/`
+- **Version check** — `check_version` tool and background update notification on MCP startup
+
 ## What's New in v0.3.0
 
 - **Window-cropped visual detection** — When a target window is set, visual analysis is cropped to that window's bounds, eliminating noise from the terminal and other background apps

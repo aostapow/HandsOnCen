@@ -59,7 +59,7 @@ if [ ! -d "${VENV_DIR}" ]; then
             pyobjc-framework-ApplicationServices
     else
         echo "[HandsOn] Installing Windows dependencies..." >&2
-        "${PIP}" install -q pywinauto pyvda
+        "${PIP}" install -q pywinauto pyvda comtypes
     fi
 
     echo "[HandsOn] Dependencies installed." >&2

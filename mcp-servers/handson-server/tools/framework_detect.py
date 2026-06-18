@@ -198,58 +198,17 @@ def _get_hwnd_for_window(window_title: Optional[str] = None) -> int:
 
 
 def _get_loaded_dlls(hwnd: int) -> list[str]:
-    """Get loaded DLL file names for the process owning *hwnd*.
-
-    Uses EnumProcessModulesEx + GetModuleFileNameExW.
-    Returns a list of DLL basenames (e.g. ['Qt6Core.dll', 'kernel32.dll']).
-    """
+    """Get loaded DLL file names for the process owning *hwnd*."""
     if platform.system().lower() != "windows":
         return []
-
     import ctypes
     import ctypes.wintypes
-
-    # Get PID from hwnd
     pid = ctypes.wintypes.DWORD()
     ctypes.windll.user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
     if not pid.value:
         return []
-
-    # Open process
-    PROCESS_QUERY_INFORMATION = 0x0400
-    PROCESS_VM_READ = 0x0010
-    handle = ctypes.windll.kernel32.OpenProcess(
-        PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, False, pid.value
-    )
-    if not handle:
-        return []
-
-    try:
-        psapi = ctypes.windll.psapi
-        MAX_MODULES = 1024
-        HMODULE = ctypes.c_void_p  # Must use c_void_p for 64-bit module handles
-        modules = (HMODULE * MAX_MODULES)()
-        needed = ctypes.wintypes.DWORD()
-
-        # LIST_MODULES_ALL = 0x03
-        if not psapi.EnumProcessModulesEx(
-            handle, ctypes.byref(modules), ctypes.sizeof(modules),
-            ctypes.byref(needed), 0x03
-        ):
-            return []
-
-        count = min(needed.value // ctypes.sizeof(HMODULE), MAX_MODULES)
-        dlls = []
-        buf = ctypes.create_unicode_buffer(260)
-        for i in range(count):
-            mod = modules[i]
-            if mod and psapi.GetModuleFileNameExW(handle, HMODULE(mod), buf, 260):
-                path = buf.value
-                basename = path.rsplit("\\", 1)[-1] if "\\" in path else path
-                dlls.append(basename)
-        return dlls
-    finally:
-        ctypes.windll.kernel32.CloseHandle(handle)
+    from handson_platform import get_loaded_modules
+    return get_loaded_modules(pid.value)
 
 
 # ---------------------------------------------------------------------------

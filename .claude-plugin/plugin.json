@@ -1,13 +1,13 @@
 {
   "name": "handson",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Give Claude eyes and hands — screen capture and interaction for full-auto workflows",
   "author": {
-    "name": "Kyle Zobell",
-    "url": "https://gitlab.com/3spky5u"
+    "name": "Ariel Ostapow",
+    "url": "https://github.com/aostapow"
   },
-  "homepage": "https://gitlab.com/3spky5u/HandsOn",
-  "repository": "https://gitlab.com/3spky5u/HandsOn",
+  "homepage": "https://github.com/aostapow/HandsOnCen",
+  "repository": "https://github.com/aostapow/HandsOnCen",
   "license": "MIT",
   "keywords": ["screen-capture", "ui-automation", "screenshot", "interaction"],
   "mcpServers": {

@@ -172,6 +172,19 @@ screenshot → analyze → act → wait_for_change → verify → repeat
 5. **Verify** — The post-action screenshot (auto-returned by `click`/`drag`, or from `wait_for_change`) confirms whether the action succeeded.
 6. **Adapt** — If the action didn't produce the expected result, retry with adjusted coordinates or try an alternative approach.
 
+### When a step in your flow fails (Discovery Protocol)
+
+Do **not** click randomly. Use the methodical discovery tools:
+
+1. `observe_ui_tool` — snapshot framework, modals, menu bars, fingerprint
+2. `plan_probes_tool(goal="Cancel", hints="Cancel,Cancelar")` — ranked revelation probes with reasons
+3. `apply_probe_tool(probe_id="expand_menu", target="Edit")` — one probe at a time
+4. `smart_find` or `discover_target_tool` — full loop with trace in `~/.handson/traces/`
+5. `find_by_template_tool` — when you have a screenshot of an icon-only button
+6. `spy_walk_visible_tool` — highlight visible elements one-by-one to locate controls
+
+After success, append to playbook which probe revealed the control (e.g. "Cancel is under Edit menu → Preferences dialog").
+
 ## Coordinate System
 
 **CRITICAL:** Screenshots are downscaled to 1280px max width for transport. All tool coordinates use SCREEN coordinates (physical pixels), NOT screenshot pixels.
@@ -267,10 +280,16 @@ Use `scroll(x, y, direction, pages=1)` for page-at-a-time scrolling. The `pages`
 
 Use this priority order:
 
-1. **`find_element` / `click_element`** — First choice. Uses the accessibility tree. Fast, precise, DPI-aware. Works on most standard widgets.
-2. **`smart_find`** — When unsure. Tries accessibility first, falls back to OCR automatically. Reports framework hints when both fail.
-3. **`find_text` / `click_text`** — OCR fallback. Use when accessibility can't see the element (custom widgets, canvas content, GTK apps).
-4. **`screenshot(region=...)` + visual inspection** — Last resort. Crop a region, read coordinates visually, click by position.
+1. **`set_target_window` + `find_element`** — First choice. Multi-backend UIA (automation_id, class_name, tree_mode). Use `detection_health` if elements are missing.
+2. **`element_at_point(x, y)`** — Pick element at coordinates from a screenshot (Automation Spy style).
+3. **`get_element_properties`** — Full inspector when you need automation_id, patterns, or framework_id.
+4. **`smart_find`** — Full cascade: UIA → MSAA/Win32/JAB/FlaUI → OCR → visual. Use when unsure.
+5. **`invoke_element` / `set_element_value`** — Control patterns without coordinate clicks (buttons, text fields).
+6. **`find_text` / `click_text`** — OCR for opaque UI (GTK, canvas, custom paint).
+7. **`detect_visual_regions`** — OpenCV regions for apps with no accessibility tree.
+8. **`screenshot(region=...)`** — Last resort coordinate clicking.
+
+For Java Swing: run `check_java_bridge` first. For Electron: `--force-renderer-accessibility`.
 
 ## Common Patterns
 

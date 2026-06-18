@@ -55,7 +55,7 @@ if not os.path.exists(_VENV_SITE):
     elif sys.platform == "win32":
         sys.stderr.write("[HandsOn] Installing Windows dependencies...\n")
         subprocess.check_call(
-            [_VENV_PIP, "install", "-q", "pywinauto", "pyvda"],
+            [_VENV_PIP, "install", "-q", "pywinauto", "pyvda", "comtypes"],
             stdout=subprocess.DEVNULL,
         )
     sys.stderr.write("[HandsOn] Ready.\n")
@@ -130,6 +130,14 @@ if sys.platform == "darwin":
 
 
 # ---------------------------------------------------------------------------
+# Version check -- background update notification (non-blocking)
+# ---------------------------------------------------------------------------
+import version_check
+
+version_check.maybe_notify_update()
+
+
+# ---------------------------------------------------------------------------
 # Server setup
 # ---------------------------------------------------------------------------
 from mcp.server.fastmcp import FastMCP
@@ -141,7 +149,7 @@ screenshot_mgr = ScreenshotManager(SCREENSHOT_DIR)
 mcp = FastMCP("handson")
 
 # Register all tool modules
-from tools import screenshot, input_tools, windows, manage, uac, desktop, ui_automation, ocr, batch, framework_detect, target_window, visual_diff, watcher
+from tools import screenshot, input_tools, windows, manage, uac, desktop, ui_automation, ocr, batch, framework_detect, target_window, visual_diff, watcher, version, discovery
 
 # Set screenshot_manager reference for tools that need it
 screenshot.screenshot_manager = screenshot_mgr
@@ -159,6 +167,8 @@ framework_detect.register(mcp)
 target_window.register(mcp)
 visual_diff.register(mcp)
 watcher.register(mcp)
+version.register(mcp)
+discovery.register(mcp)
 
 if __name__ == "__main__":
     mcp.run(transport="stdio")

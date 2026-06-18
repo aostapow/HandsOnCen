@@ -10,4 +10,7 @@ build/
 .pytest_cache/
 docs/plans/
 tests/integration/failures/
+pip-install.log
+mcp-servers/*/bin/
+mcp-servers/*/obj/
 

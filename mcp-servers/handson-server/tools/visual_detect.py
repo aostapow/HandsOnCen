@@ -10,10 +10,13 @@ Uses OpenCV for contour detection and RapidOCR for text.
 import os
 import sys
 import tempfile
+from typing import Union
 
 import cv2
 import numpy as np
 from PIL import Image
+
+from tools.image_utils import load_image
 
 _MIN_W = 20
 _MIN_H = 15
@@ -170,16 +173,18 @@ def merge_regions(rects: list[dict], texts: list[dict]) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 
-def detect_ui_regions(img: Image.Image, scale: float = 1.0) -> list[dict]:
+def detect_ui_regions(img: Union[Image.Image, str, bytes], scale: float = 1.0) -> list[dict]:
     """Detect UI regions in a screenshot image.
 
     Runs rectangle detection + OCR, merges, and scales to screen-space.
 
     Parameters:
-        img: The (possibly downscaled) screenshot PIL Image.
+        img: PIL Image, file path, or raw PNG bytes.
         scale: Downscale ratio (original_width / image_width). Coordinates
                are multiplied by this to produce screen-space values.
     """
+    if not isinstance(img, Image.Image):
+        img = load_image(img)
     rects = detect_rectangles(img)
     texts = detect_text(img)
     merged = merge_regions(rects, texts)

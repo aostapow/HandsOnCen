@@ -192,15 +192,168 @@ def _run_ocr(image_path: Optional[str] = None, invert: bool = False) -> list[dic
     return _run_ocr_engine(image_path)
 
 
+def _windows_ocr_on_image(image_path: str) -> list[dict]:
+    """Windows.Media.Ocr via winsdk (Win10+). Returns [] if unavailable."""
+    if sys.platform != "win32":
+        return []
+    try:
+        import asyncio
+        from winsdk.windows.graphics.imaging import BitmapDecoder
+        from winsdk.windows.media.ocr import OcrEngine
+        from winsdk.windows.storage import StorageFile
+
+        async def _run():
+            file = await StorageFile.get_file_from_path_async(image_path)
+            stream = await file.open_async(0)  # Read
+            decoder = await BitmapDecoder.create_async(stream)
+            bitmap = await decoder.get_software_bitmap_async()
+            engine = OcrEngine.try_create_from_user_profile_languages()
+            if engine is None:
+                return []
+            result = await engine.recognize_async(bitmap)
+            words = []
+            for line in result.lines:
+                for word in line.words:
+                    rect = word.bounding_rect
+                    words.append({
+                        "text": word.text,
+                        "x": int(rect.x),
+                        "y": int(rect.y),
+                        "width": int(rect.width),
+                        "height": int(rect.height),
+                    })
+            return words
+
+        return asyncio.run(_run())
+    except Exception:
+        return []
+
+
 def _run_ocr_engine(image_path: str) -> list[dict]:
-    """Dispatch to Vision (macOS preferred) or RapidOCR (all platforms)."""
+    """Dispatch to Vision (macOS), RapidOCR, then Windows OCR fallback."""
     if sys.platform == "darwin":
         try:
             from handson_platform import run_ocr_native
             return run_ocr_native(image_path)
         except ImportError:
             pass
-    return _rapid_ocr_on_image(image_path)
+
+    rapid = _rapid_ocr_on_image(image_path)
+    if rapid:
+        return rapid
+
+    if sys.platform == "win32":
+        windows = _windows_ocr_on_image(image_path)
+        if windows:
+            return windows
+
+    return rapid
+
+
+def _merge_ocr_results(results_list: list[list[dict]], iou_threshold: float = 0.5) -> list[dict]:
+    """Merge OCR word lists from multiple engines, keeping highest confidence."""
+    merged: list[dict] = []
+    for words in results_list:
+        for w in words:
+            w = dict(w)
+            w.setdefault("confidence", 0.8)
+            w.setdefault("engine", "ocr")
+            dup = False
+            for m in merged:
+                if (
+                    m["text"] == w["text"]
+                    and abs(m["x"] - w["x"]) <= 8
+                    and abs(m["y"] - w["y"]) <= 8
+                ):
+                    dup = True
+                    if w.get("confidence", 0) > m.get("confidence", 0):
+                        m.update(w)
+                    if m.get("engine") != w.get("engine"):
+                        m["engine"] = "both"
+                    break
+            if not dup:
+                merged.append(w)
+    return merged
+
+
+def run_dual_ocr(image_path: str) -> list[dict]:
+    """Run RapidOCR and Windows OCR in parallel; merge results."""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    results_list: list[list[dict]] = []
+
+    def _rapid():
+        words = _rapid_ocr_on_image(image_path)
+        for w in words:
+            w["engine"] = "rapid"
+            w.setdefault("confidence", 0.85)
+        return words
+
+    def _windows():
+        words = _windows_ocr_on_image(image_path)
+        for w in words:
+            w["engine"] = "windows"
+            w.setdefault("confidence", 0.8)
+        return words
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futs = [pool.submit(_rapid)]
+        if sys.platform == "win32":
+            futs.append(pool.submit(_windows))
+        for fut in futs:
+            try:
+                results_list.append(fut.result())
+            except Exception:
+                pass
+    return _merge_ocr_results(results_list)
+
+
+def do_find_text_dual(
+    query: str,
+    case_sensitive: bool = False,
+    window_title: Optional[str] = None,
+    prefer_content: bool = True,
+) -> dict:
+    """Find text using dual OCR engines (RapidOCR + Windows OCR)."""
+    if window_title is None:
+        from tools.target_window import get_target
+        window_title = get_target()
+
+    region_offset = None
+    region_scale = 1.0
+    image_path = None
+    window_rect = None
+    if window_title:
+        window_rect = _get_window_rect(window_title)
+        if window_rect:
+            from tools.screenshot import capture_screenshot
+            shot = capture_screenshot(region=window_rect)
+            image_path = shot["path"]
+            region_offset = (window_rect["x"], window_rect["y"])
+            if shot["width"] < window_rect["w"]:
+                region_scale = window_rect["w"] / shot["width"]
+    if image_path is None:
+        image_path = _capture_image_path()
+
+    words = run_dual_ocr(image_path)
+    if region_offset:
+        ox, oy = region_offset
+        for w in words:
+            if region_scale != 1.0:
+                w["x"] = round(w["x"] * region_scale)
+                w["y"] = round(w["y"] * region_scale)
+                w["width"] = round(w["width"] * region_scale)
+                w["height"] = round(w["height"] * region_scale)
+            w["x"] += ox
+            w["y"] += oy
+
+    q = query if case_sensitive else query.lower()
+    has_spaces = " " in q
+    matches = _search_words(words, q, has_spaces, case_sensitive)
+    if prefer_content and window_rect:
+        matches.sort(key=lambda m: _score_content_area(m, window_rect))
+
+    return {"matches": matches, "engine": "dual", "count": len(matches)}
 
 
 def _merge_words(words: list[dict]) -> dict:
