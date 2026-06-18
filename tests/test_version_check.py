@@ -40,7 +40,7 @@ class TestVersionCompare:
 
 class TestGetLocalVersion:
     def test_reads_version_file(self):
-        assert version_check.get_local_version() == "0.4.2"
+        assert version_check.get_local_version() == "0.4.3"
 
 
 class TestCheckVersion:
@@ -55,7 +55,7 @@ class TestCheckVersion:
 
         info = version_check.check_version(force=True)
 
-        assert info.current_version == "0.4.2"
+        assert info.current_version == "0.4.3"
         assert info.latest_version == "0.5.0"
         assert info.update_available is True
         assert info.source == "release"
@@ -66,7 +66,7 @@ class TestCheckVersion:
         cache_file.write_text(
             json.dumps(
                 {
-                    "current_version": "0.4.2",
+                    "current_version": "0.4.3",
                     "latest_version": "0.5.0",
                     "update_available": True,
                     "release_url": "https://example.com",

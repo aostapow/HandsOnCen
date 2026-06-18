@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.4.3 — 2026-06-18
+
+Stability release fixing MCP disconnects (`Connection closed` / `-32000`) during agentic sessions.
+
+### MCP stability
+- **Windows COM/UIA safety** — `with_timeout()` no longer runs automation on daemon threads on Win32
+- Process-wide `_WIN_COM_LOCK` serializes concurrent tool calls (parallel MCP requests were crashing the server)
+- Prevents native access violations from pywinauto/UIA in STA mode
+
+### Tests
+- `tests/integration/test_paint.py` — agentic test plan for Microsoft Paint (15 automated + 4 manual cases)
+- `test_safety.py` — skip thread-timeout test on Windows (COM path is synchronous)
+
 ## 0.4.2 — 2026-06-18
 
 Bug-fix release after full MCP tool verification (55 tools).

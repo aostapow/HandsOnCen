@@ -14,6 +14,11 @@ from typing import Any, Callable
 
 _SENTINEL = object()
 
+# Windows UIA/COM (pywinauto, FlaUI) is STA — must not run on daemon worker threads
+# or concurrently across MCP requests. A single lock + main-thread execution prevents
+# native access violations that kill the MCP stdio process ("Connection closed").
+_WIN_COM_LOCK = threading.Lock()
+
 
 class ActionTimeoutError(Exception):
     """Raised when a tool action exceeds its timeout."""
@@ -28,12 +33,17 @@ class CircuitOpenError(Exception):
 def with_timeout(fn: Callable, timeout: float = 10.0, default: Any = _SENTINEL) -> Any:
     """Run *fn()* with a timeout.
 
+    On Windows, COM/UIA automation runs synchronously on the calling thread
+    inside a process-wide lock. Spawning worker threads for UIA caused MCP
+    disconnects (JSON-RPC -32000 Connection closed) when tools were invoked
+    in parallel or under load.
+
     Parameters
     ----------
     fn : callable
         Zero-argument callable to execute.
     timeout : float
-        Maximum seconds to wait.
+        Maximum seconds to wait (ignored on Windows COM path).
     default : Any
         If provided, return this value on timeout instead of raising.
 
@@ -42,6 +52,10 @@ def with_timeout(fn: Callable, timeout: float = 10.0, default: Any = _SENTINEL) 
     ActionTimeoutError
         If *fn* exceeds *timeout* and no *default* was given.
     """
+    if sys.platform == "win32":
+        with _WIN_COM_LOCK:
+            return fn()
+
     result = [None]
     error = [None]
 
