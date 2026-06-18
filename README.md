@@ -5,7 +5,7 @@
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-lightgrey?style=flat-square)]()
 [![Claude Code Plugin](https://img.shields.io/badge/Claude%20Code-plugin-blueviolet?style=flat-square)](https://docs.anthropic.com/en/docs/claude-code)
 [![MCP](https://img.shields.io/badge/MCP-server-orange?style=flat-square)](https://modelcontextprotocol.io)
-[![Tools](https://img.shields.io/badge/tools-34-green?style=flat-square)]()
+[![Tools](https://img.shields.io/badge/tools-55-green?style=flat-square)]()
 
 Give Claude eyes and hands. A Claude Code plugin that lets Claude see your screen and interact with any application on your desktop.
 
@@ -102,21 +102,25 @@ Use `/handson` to start a guided automation session with permission prompts.
 
 ## Tools
 
-HandsOn provides 34 tools across 12 categories:
+HandsOn provides **55 tools** across 15 categories:
 
 | Category | Tools | What They Do |
 |----------|-------|--------------|
 | **Vision** | `screenshot`, `wait_for_change`, `get_screen_size` | Capture the screen, detect when something changes, get monitor dimensions |
 | **Visual Diff** | `screenshot_baseline`, `screenshot_diff` | Before/after screenshot comparison — highlights changed pixels in red with bounding box |
 | **Input** | `click`, `type_text`, `send_keys`, `scroll`, `drag`, `hover`, `get_mouse_position` | Full mouse and keyboard control — click anywhere, type text, send hotkeys, scroll, drag |
-| **Accessibility** | `find_element`, `click_element`, `list_elements`, `get_focused_element`, `smart_find` | Find and interact with UI elements via the Windows accessibility tree (UIA). `smart_find` auto-falls back to OCR |
-| **OCR** | `find_text`, `click_text` | Find and click text on screen when the accessibility tree can't see it (games, custom widgets, canvas apps) |
+| **Accessibility** | `find_element`, `click_element`, `list_elements`, `get_focused_element`, `smart_find`, `element_at_point`, `get_element_properties`, `invoke_element`, `set_element_value` | Find and interact with UI elements via UIA/AX. `smart_find` cascades repo → native → OCR → visual |
+| **Detection** | `ui_fingerprint`, `detection_health`, `check_java_bridge`, `detect_visual_regions`, `build_detection_context` | Diagnostics, fingerprinting, JAB check, CV region hints |
+| **Repository** | `repo_find`, `repo_list` | UFT-style object repository in `~/.handson/repositories/` |
+| **Spy** | `spy_inspect`, `spy_tree`, `highlight_element`, `clear_highlight`, `spy_walk_visible_tool` | Spy-grade inspect, tree walk, persistent highlight overlay |
+| **Discovery** | `observe_ui_tool`, `plan_probes_tool`, `apply_probe_tool`, `discover_target_tool`, `find_by_template_tool` | Methodical UI revelation when controls are hidden (menus, tabs, modals) |
+| **OCR** | `find_text`, `click_text` | Find and click text on screen when the accessibility tree can't see it |
 | **Framework** | `detect_framework` | Identify the app's UI toolkit and get actionable automation hints |
 | **Windows** | `list_windows`, `focus_window`, `launch_app`, `set_target_window`, `get_target_window` | List open windows, focus/minimize/maximize, launch apps. Target window auto-focuses before every input action |
 | **Monitoring** | `start_watcher`, `stop_watcher`, `get_notifications` | Background thread watches for new windows/dialogs/toasts and captures snippets |
-| **Automation** | `batch_actions` | Chain multiple actions (click, type, keypress, scroll, wait) in a single call — reduces round trips |
+| **Automation** | `batch_actions` | Chain multiple actions in a single call — reduces round trips |
 | **Desktop** | `virtual_desktop` | Create an isolated virtual desktop so Claude can work without disturbing your windows |
-| **Utility** | `clipboard`, `manage_screenshots` | Read/write the clipboard, manage screenshot storage |
+| **Utility** | `clipboard`, `manage_screenshots`, `check_version` | Clipboard, screenshot storage, GitHub update check |
 | **System** | `configure_uac` | Suppress UAC prompts for unattended automation workflows |
 
 ## How It Works

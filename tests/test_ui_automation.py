@@ -281,3 +281,23 @@ class TestRegister:
         from tools.discovery import register
         count = register(server)
         assert count == 6
+
+    def test_total_tool_count(self):
+        server = mock.MagicMock()
+        from tools import (
+            screenshot, input_tools, windows, manage, uac, desktop,
+            ui_automation, ocr, batch, framework_detect, target_window,
+            visual_diff, watcher, version, discovery,
+        )
+        total = sum(
+            fn(server)
+            for fn in (
+                screenshot.register, input_tools.register, windows.register,
+                manage.register, uac.register, desktop.register,
+                ui_automation.register, ocr.register, batch.register,
+                framework_detect.register, target_window.register,
+                visual_diff.register, watcher.register, version.register,
+                discovery.register,
+            )
+        )
+        assert total == 55

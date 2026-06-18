@@ -629,6 +629,7 @@ def register(server) -> int:
             f"at ({e['x']},{e['y']}) {e['width']}x{e['height']}"
         )
 
+    @server.tool()
     def smart_find(
         name: str,
         role: str = "",
